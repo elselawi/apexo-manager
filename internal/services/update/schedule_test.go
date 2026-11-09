@@ -36,7 +36,7 @@ func TestScheduleInstallBuildsDetachedUnit(t *testing.T) {
 		t.Fatalf("runner = %s", runner.name)
 	}
 	joined := strings.Join(runner.args, " ")
-	for _, want := range []string{"self-upgrade", "--from " + source, "--sha256 " + strings.Repeat("a", 64), "--version 1.0.2", "--target /usr/local/bin/pbmanager", "--service pbmanager", "--config /etc/pbmanager/config.json"} {
+	for _, want := range []string{"--no-block", "self-upgrade", "--from " + source, "--sha256 " + strings.Repeat("a", 64), "--version 1.0.2", "--target /usr/local/bin/pbmanager", "--service pbmanager", "--config /etc/pbmanager/config.json"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in %s", want, joined)
 		}

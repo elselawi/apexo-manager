@@ -177,7 +177,12 @@ func openApp(ctx context.Context) (*appcore.App, error) {
 		return nil, err
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	return appcore.Open(ctx, cfg, log)
+	app, err := appcore.Open(ctx, cfg, log)
+	if err != nil {
+		return nil, err
+	}
+	app.Version = Version
+	return app, nil
 }
 
 func printJSON(v any) {
@@ -235,6 +240,7 @@ func cmdServe(args []string) int {
 		return fail(err)
 	}
 	defer app.Close()
+	app.Version = Version
 	if err := app.Start(runCtx); err != nil {
 		return fail(err)
 	}

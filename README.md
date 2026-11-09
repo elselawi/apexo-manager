@@ -43,11 +43,11 @@ This manager is built around a few non-negotiable rules:
 Push a version tag to publish Linux `amd64`/`arm64` binaries and a `checksums.txt` through the included GitHub Actions workflow:
 
 ```bash
-git tag v1.0.2
-git push origin v1.0.2
+git tag v1.0.3
+git push origin v1.0.3
 ```
 
-Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. The first transition from a version older than 1.0.2 must be done once with `deploy-remote.sh` or the installer, because older builds do not include the self-update endpoint.
+Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. The first transition from a version older than 1.0.3 must be done once with `deploy-remote.sh` or the installer, because older builds do not include the self-update endpoint.
 
 ### Domains, Caddy, and Cloudflare
 

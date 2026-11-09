@@ -250,8 +250,8 @@ The dashboard updater starts this command from a detached systemd unit:
 
 ```bash
 pbmanager self-upgrade \
-  --from /var/lib/pbmanager/updates/pbmanager_1.0.2_linux_amd64 \
-  --sha256 <digest> --version 1.0.2 \
+  --from /var/lib/pbmanager/updates/pbmanager_1.0.3_linux_amd64 \
+  --sha256 <digest> --version 1.0.3 \
   --target /usr/local/bin/pbmanager --service pbmanager --delay 7
 ```
 

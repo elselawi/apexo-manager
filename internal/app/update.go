@@ -18,12 +18,19 @@ import (
 // managerUpdate downloads the latest GitHub release, verifies it, and starts a
 // detached updater. The detached unit survives the service restart it performs.
 func (a *App) managerUpdate(ctx context.Context, ex *jobs.Execution) (any, error) {
+	current := a.Version
+	if current == "" {
+		current = "dev"
+	}
+	// A scheduled update deliberately restarts the service. When the new
+	// process recovers this job, detect that it is already running the target
+	// release instead of scheduling a second installer.
+	pre, preErr := a.Update.Check(ctx, current)
+	if preErr == nil && pre.Latest != "" && update.CompareVersions(pre.Latest, current) <= 0 {
+		return map[string]any{"version": pre.Latest, "status": "already_current", "note": "The running version is already current."}, nil
+	}
 	var info update.Info
 	if err := ex.Step(ctx, "check", "Check the latest GitHub release", func(ctx context.Context) (string, error) {
-		current := a.Version
-		if current == "" {
-			current = "dev"
-		}
 		got, err := a.Update.Check(ctx, current)
 		if err != nil {
 			return "", jobs.Retryable(err)

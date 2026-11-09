@@ -318,6 +318,7 @@ func ScheduleInstall(ctx context.Context, runner platform.Runner, source, sum, v
 		"--unit=" + unit,
 		"--collect",
 		"--quiet",
+		"--no-block",
 		"--description=Install pbmanager " + version,
 		"--property=Type=oneshot",
 		"--property=WorkingDirectory=/",
