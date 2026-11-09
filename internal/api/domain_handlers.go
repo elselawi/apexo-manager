@@ -92,8 +92,9 @@ func (s *Server) handleDomainStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Active  bool   `json:"active"`
-		Message string `json:"message"`
+		Active      bool   `json:"active"`
+		Dismissable bool   `json:"dismissable"`
+		Message     string `json:"message"`
 	}
 	if err := decodeJSON(w, r, &in); err != nil {
 		writeError(w, r, http.StatusBadRequest, "invalid_body", err.Error(), nil)
@@ -103,7 +104,7 @@ func (s *Server) handleDomainStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusBadRequest, "message_too_long", "Message must be 2000 characters or fewer", nil)
 		return
 	}
-	if err := s.App.Store.SetDomainStatus(r.Context(), d.ID, in.Active, in.Message); err != nil {
+	if err := s.App.Store.SetDomainStatus(r.Context(), d.ID, in.Active, in.Dismissable, in.Message); err != nil {
 		if notFoundOr(w, r, err, "Domain") {
 			return
 		}
@@ -112,6 +113,7 @@ func (s *Server) handleDomainStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "domain.status_updated", "domain", d.ID, map[string]any{"active": in.Active})
 	d.HostedActive = in.Active
+	d.HostedDismissable = in.Dismissable
 	d.HostedMessage = in.Message
 	writeJSON(w, http.StatusOK, map[string]any{"domain": d})
 }

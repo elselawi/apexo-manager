@@ -322,15 +322,15 @@ func (s *Store) CountInstances(ctx context.Context) (int, error) {
 const domainColumns = `d.id, d.instance_id, i.name, d.hostname, COALESCE(d.cloudflare_account_id,''),
 	d.zone_id, d.zone_name, d.dns_record_id, d.proxied, d.dns_managed, d.caddy_managed, d.snippet_path,
 	d.dns_status, d.caddy_status, d.tls_status, d.tls_expires_at, d.last_checked_at, d.last_error,
-	d.hosted_active, d.hosted_message, d.created_at, d.updated_at`
+	d.hosted_active, d.hosted_dismissable, d.hosted_message, d.created_at, d.updated_at`
 
 func scanDomain(sc interface{ Scan(...any) error }) (*Domain, error) {
 	var v Domain
-	var proxied, dnsManaged, caddyManaged, hostedActive int
+	var proxied, dnsManaged, caddyManaged, hostedActive, hostedDismissable int
 	err := sc.Scan(&v.ID, &v.InstanceID, &v.InstanceName, &v.Hostname, &v.CloudflareAccountID,
 		&v.ZoneID, &v.ZoneName, &v.DNSRecordID, &proxied, &dnsManaged, &caddyManaged, &v.SnippetPath,
 		&v.DNSStatus, &v.CaddyStatus, &v.TLSStatus, &v.TLSExpiresAt, &v.LastCheckedAt, &v.LastError,
-		&hostedActive, &v.HostedMessage, &v.CreatedAt, &v.UpdatedAt)
+		&hostedActive, &hostedDismissable, &v.HostedMessage, &v.CreatedAt, &v.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +338,7 @@ func scanDomain(sc interface{ Scan(...any) error }) (*Domain, error) {
 	v.DNSManaged = dnsManaged != 0
 	v.CaddyManaged = caddyManaged != 0
 	v.HostedActive = hostedActive != 0
+	v.HostedDismissable = hostedDismissable != 0
 	return &v, nil
 }
 
@@ -347,18 +348,19 @@ func (s *Store) CreateDomain(ctx context.Context, d *Domain) error {
 		d.ID = NewID()
 	}
 	d.HostedActive = true
+	d.HostedDismissable = true
 	if d.CreatedAt == "" {
 		d.CreatedAt = Now()
 	}
 	d.UpdatedAt = Now()
 	_, err := s.db.ExecContext(ctx, `INSERT INTO domains(id,instance_id,hostname,cloudflare_account_id,zone_id,zone_name,
 		dns_record_id,proxied,dns_managed,caddy_managed,snippet_path,dns_status,caddy_status,tls_status,
-		tls_expires_at,last_checked_at,last_error,hosted_active,hosted_message,created_at,updated_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		tls_expires_at,last_checked_at,last_error,hosted_active,hosted_dismissable,hosted_message,created_at,updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		d.ID, d.InstanceID, d.Hostname, nullIfEmpty(d.CloudflareAccountID), d.ZoneID, d.ZoneName,
 		d.DNSRecordID, boolInt(d.Proxied), boolInt(d.DNSManaged), boolInt(d.CaddyManaged), d.SnippetPath,
 		d.DNSStatus, d.CaddyStatus, d.TLSStatus, d.TLSExpiresAt, d.LastCheckedAt, d.LastError,
-		boolInt(d.HostedActive), d.HostedMessage, d.CreatedAt, d.UpdatedAt)
+		boolInt(d.HostedActive), boolInt(d.HostedDismissable), d.HostedMessage, d.CreatedAt, d.UpdatedAt)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return fmt.Errorf("domain %q is already mapped to an instance", d.Hostname)
@@ -374,11 +376,11 @@ func (s *Store) UpdateDomain(ctx context.Context, d *Domain) error {
 	res, err := s.db.ExecContext(ctx, `UPDATE domains SET instance_id=?, hostname=?, cloudflare_account_id=?, zone_id=?,
 		zone_name=?, dns_record_id=?, proxied=?, dns_managed=?, caddy_managed=?, snippet_path=?, dns_status=?,
 		caddy_status=?, tls_status=?, tls_expires_at=?, last_checked_at=?, last_error=?, hosted_active=?,
-		hosted_message=?, updated_at=? WHERE id=?`,
+		hosted_dismissable=?, hosted_message=?, updated_at=? WHERE id=?`,
 		d.InstanceID, d.Hostname, nullIfEmpty(d.CloudflareAccountID), d.ZoneID, d.ZoneName, d.DNSRecordID,
 		boolInt(d.Proxied), boolInt(d.DNSManaged), boolInt(d.CaddyManaged), d.SnippetPath, d.DNSStatus,
 		d.CaddyStatus, d.TLSStatus, d.TLSExpiresAt, d.LastCheckedAt, d.LastError,
-		boolInt(d.HostedActive), d.HostedMessage, d.UpdatedAt, d.ID)
+		boolInt(d.HostedActive), boolInt(d.HostedDismissable), d.HostedMessage, d.UpdatedAt, d.ID)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return fmt.Errorf("domain %q is already mapped to an instance", d.Hostname)
@@ -453,9 +455,9 @@ func (s *Store) DeleteDomain(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Store) SetDomainStatus(ctx context.Context, id string, active bool, message string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE domains SET hosted_active=?, hosted_message=?, updated_at=? WHERE id=?`,
-		boolInt(active), message, Now(), id)
+func (s *Store) SetDomainStatus(ctx context.Context, id string, active, dismissable bool, message string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE domains SET hosted_active=?, hosted_dismissable=?, hosted_message=?, updated_at=? WHERE id=?`,
+		boolInt(active), boolInt(dismissable), message, Now(), id)
 	if err != nil {
 		return err
 	}

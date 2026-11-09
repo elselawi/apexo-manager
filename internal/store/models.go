@@ -116,6 +116,7 @@ type Domain struct {
 	LastCheckedAt       string `json:"lastCheckedAt,omitempty"`
 	LastError           string `json:"lastError,omitempty"`
 	HostedActive        bool   `json:"hostedActive"`
+	HostedDismissable   bool   `json:"dismissable"`
 	HostedMessage       string `json:"hostedMessage"`
 	CreatedAt           string `json:"createdAt"`
 	UpdatedAt           string `json:"updatedAt"`

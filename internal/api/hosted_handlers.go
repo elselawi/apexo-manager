@@ -26,7 +26,7 @@ func (s *Server) handleHostedStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, http.StatusInternalServerError, "internal", "Could not resolve hostname", nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"active": d.HostedActive, "message": d.HostedMessage})
+	writeJSON(w, http.StatusOK, map[string]any{"active": d.HostedActive, "dismissable": d.HostedDismissable, "message": d.HostedMessage})
 }
 
 func (s *Server) handleHostedOptions(w http.ResponseWriter, r *http.Request) {

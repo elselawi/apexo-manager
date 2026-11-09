@@ -271,7 +271,7 @@ export function InstanceDetailPage() {
                   {domains.map((domain) => (
                     <tr key={domain.id}>
                       <td><strong>{domain.hostname}</strong>{domain.proxied ? <Badge tone="warning">Proxied</Badge> : null}</td>
-                      <td><Badge tone={domain.hostedActive ? "success" : "danger"}>{domain.hostedActive ? "active" : "inactive"}</Badge>{domain.hostedMessage ? <div className="muted small">{domain.hostedMessage}</div> : null}</td>
+                      <td><Badge tone={domain.hostedActive ? "success" : "danger"}>{domain.hostedActive ? "active" : "inactive"}</Badge>{domain.dismissable ? <Badge tone="neutral">dismissable</Badge> : null}{domain.hostedMessage ? <div className="muted small">{domain.hostedMessage}</div> : null}</td>
                       <td><StatusBadge status={domain.dnsStatus} /></td>
                       <td><StatusBadge status={domain.caddyStatus} /></td>
                       <td><StatusBadge status={domain.tlsStatus} /></td>
@@ -1349,6 +1349,7 @@ function DomainStatusModal({
 }) {
   const toast = useToast();
   const [active, setActive] = useState(true);
+  const [dismissable, setDismissable] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1356,6 +1357,7 @@ function DomainStatusModal({
   useEffect(() => {
     if (!domain) return;
     setActive(domain.hostedActive);
+    setDismissable(domain.dismissable);
     setMessage(domain.hostedMessage ?? "");
     setError(null);
   }, [domain]);
@@ -1365,7 +1367,7 @@ function DomainStatusModal({
     setBusy(true);
     setError(null);
     try {
-      await api.setDomainStatus(domain.id, active, message);
+      await api.setDomainStatus(domain.id, active, dismissable, message);
       toast.success("Hosted status updated");
       onSaved();
     } catch (err) {
@@ -1385,6 +1387,7 @@ function DomainStatusModal({
       <div className="stack">
         {error ? <div className="form-error">{error}</div> : null}
         <Switch checked={active} onChange={setActive} label="Active" description="Apps that read this status receive active=true or active=false." />
+        <Switch checked={dismissable} onChange={setDismissable} label="Dismissable" description="Included in the status response for this hostname." />
         <Field label="Message" hint="Returned to apps alongside the active field.">
           <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} maxLength={2000} />
         </Field>

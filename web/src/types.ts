@@ -99,6 +99,7 @@ export interface Domain {
   lastCheckedAt?: string;
   lastError?: string;
   hostedActive: boolean;
+  dismissable: boolean;
   hostedMessage: string;
   createdAt: string;
   updatedAt: string;

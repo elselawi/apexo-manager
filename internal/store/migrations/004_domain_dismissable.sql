@@ -1,0 +1,1 @@
+ALTER TABLE domains ADD COLUMN hosted_dismissable INTEGER NOT NULL DEFAULT 1;
