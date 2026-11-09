@@ -1,0 +1,10 @@
+{
+  "data_dir": "/var/lib/pbmanager",
+  "db_path": "/var/lib/pbmanager/manager.db",
+  "listen_addr": "127.0.0.1:8787",
+  "public_url": "https://manager.example.com",
+  "secure_cookies": true,
+  "log_level": "info",
+  "session_hours": 12,
+  "trust_proxy": true
+}

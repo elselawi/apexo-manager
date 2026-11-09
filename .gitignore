@@ -1,0 +1,11 @@
+# build outputs
+/dist/
+web/dist/
+web/node_modules/
+web/*.tsbuildinfo
+*.log
+*.tmp
+
+# local test artifacts
+scripts/tmp-*
+/coverage.out

@@ -1,0 +1,14 @@
+{
+	# Keep the admin endpoint bound to loopback only.
+	admin localhost:2019
+	email ops@example.com
+}
+
+# Existing applications remain in the Caddyfile exactly as they are.
+app.example.com {
+	reverse_proxy 127.0.0.1:8090
+}
+
+# pbmanager owns only files inside this directory. The install script and the
+# dashboard add this import once, after validating the complete config.
+import /etc/caddy/pbmanager.d/*.caddy
