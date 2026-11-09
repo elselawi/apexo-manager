@@ -108,6 +108,16 @@ PocketBase admin integration:
 - Chrome loaded the PocketBase admin tab with settings, native backups, superusers, and auth users sections and the save-confirmation dialog.
 - Final local health after the admin build: `{"service":"pbmanager","status":"ok","version":"1.0.7"}`.
 
+Maturity pass:
+
+- Admin UI is split into **Settings / Native backups / Superusers / Auth users** tabs, with a sticky settings save bar.
+- Profile pages now state that profiles are optional deployment templates and that existing instance configuration is discovered under Application settings.
+- PocketBase admin writes are serialized by a manager mutex.
+- Superuser operations now wait for the service to stop, verify the new credentials when the service is running, and journal the service state under `<dataDir>/admin-ops` for startup recovery.
+- Added unit tests for settings validation, user-input normalization, and admin-operation journal recovery.
+- Chrome verified all four admin tabs.
+- Final local health after the maturity pass: `{"service":"pbmanager","status":"ok","version":"1.0.9"}`.
+
 Toast notification regression:
 
 - The repeated-toast bug was reproduced as an inline `onFinished` callback in `JobProgress`'s effect dependency. Every parent re-render restarted the effect, reset the per-run `finished` guard, and fired the completion toast again.

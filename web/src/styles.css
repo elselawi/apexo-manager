@@ -802,3 +802,5 @@ code { font-size: 0.9em; }
   .account-grid { gap: 16px; }
   .audit-detail dl { grid-template-columns: 1fr; }
 }
+
+.admin-save-bar { position: sticky; bottom: 12px; z-index: 2; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px; box-shadow: var(--shadow-sm); }

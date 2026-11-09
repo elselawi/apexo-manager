@@ -16,11 +16,13 @@ import {
   Notice,
   Select,
   Switch,
+  Tabs,
   Textarea,
 } from "../components/ui";
 
 export function InstanceAdmin({ data, onRefresh }: { data: InstanceDetail; onRefresh: () => void }) {
   const { instance } = data;
+  const [section, setSection] = useState("settings");
   return (
     <div className="detail-grid">
       <div className="detail-main">
@@ -28,10 +30,20 @@ export function InstanceAdmin({ data, onRefresh }: { data: InstanceDetail; onRef
           These actions use the linked PocketBase superuser and the documented management APIs. Settings changes,
           native restores, and identity changes are audited. Application collection data is not editable here.
         </Notice>
-        <AdminSettingsCard instanceId={instance.id} instanceName={instance.name} />
-        <AdminBackupsCard instance={instance} />
-        <AdminSuperusersCard instance={instance} />
-        <AdminUsersCard instance={instance} onRefresh={onRefresh} />
+        <Tabs
+          tabs={[
+            { id: "settings", label: "Settings" },
+            { id: "backups", label: "Native backups" },
+            { id: "superusers", label: "Superusers" },
+            { id: "users", label: "Auth users" },
+          ]}
+          active={section}
+          onChange={setSection}
+        />
+        {section === "settings" ? <AdminSettingsCard instanceId={instance.id} instanceName={instance.name} /> : null}
+        {section === "backups" ? <AdminBackupsCard instance={instance} /> : null}
+        {section === "superusers" ? <AdminSuperusersCard instance={instance} /> : null}
+        {section === "users" ? <AdminUsersCard instance={instance} onRefresh={onRefresh} /> : null}
       </div>
     </div>
   );
@@ -184,7 +196,7 @@ function AdminSettingsCard({ instanceId, instanceName }: { instanceId: string; i
         <Field label="Batch timeout (seconds)"><Input type="number" value={settings.batch.timeout} onChange={(e) => batch("timeout", Number(e.target.value))} /></Field>
         <Field label="Batch max body size"><Input type="number" value={settings.batch.maxBodySize} onChange={(e) => batch("maxBodySize", Number(e.target.value))} /></Field>
 
-        <div className="form-span button-row">
+        <div className="form-span button-row admin-save-bar">
           <Button variant="primary" icon={<Save size={15} />} onClick={() => setConfirmSave(true)} loading={saving}>Save PocketBase settings</Button>
         </div>
       </div>
@@ -378,7 +390,7 @@ function SuperuserModal({ instance, modal, onClose, onSaved }: {
         {error ? <div className="form-error form-span">{error}</div> : null}
         {managerOwned ? <div className="form-span"><Notice tone="warning">This is the pbmanager-managed account. The watchdog will detect and repair a changed password or deleted account.</Notice></div> : null}
         <Field label="Email" required><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-        <Field label={modal?.mode === "edit" ? "New password (required)" : "Password"} required><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" /></Field>
+        <Field label={modal?.mode === "edit" ? "New password (required)" : "Password"} required><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required /></Field>
         <div className="form-span"><Notice tone="info">Superuser changes use the official CLI and stop the service briefly. The last superuser cannot be deleted.</Notice></div>
       </div>
     </Modal>
@@ -505,7 +517,7 @@ function AuthUserModal({ instance, collectionId, modal, onClose, onSaved }: {
         <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Username"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Field>
         <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
-        <Field label={modal?.mode === "edit" ? "New password (blank preserves)" : "Password"}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" /></Field>
+        <Field label={modal?.mode === "edit" ? "New password (blank preserves)" : "Password"} required={modal?.mode === "create"}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required={modal?.mode === "create"} /></Field>
         <div className="form-span"><Switch checked={verified} onChange={setVerified} label="Email verified" /></div>
         <div className="form-span"><Notice tone="info">Only standard auth fields are exposed. Application data and custom collection records are intentionally excluded.</Notice></div>
       </div>

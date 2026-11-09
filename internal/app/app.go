@@ -102,7 +102,7 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 		Store: st, Secrets: box, Systemd: systemdMgr, Jobs: jobEngine,
 		Runner: runner, DataDir: cfg.DataDir, Log: log,
 	}
-	pbAdmin := &pbadmin.Manager{Store: st, Secrets: box, Systemd: systemdMgr, Runner: runner, Log: log}
+	pbAdmin := &pbadmin.Manager{Store: st, Secrets: box, Systemd: systemdMgr, Runner: runner, DataDir: cfg.DataDir, Log: log}
 	monitorSvc := &monitor.Service{Store: st, Cfg: cfgFunc, Systemd: systemdMgr, Caddy: caddyMgr, DataDir: cfg.DataDir, Log: log}
 	discoverySvc := &discovery.Service{Store: st, Cfg: cfgFunc}
 	app := &App{
@@ -164,6 +164,11 @@ func (a *App) Start(ctx context.Context) error {
 	if a.Managed != nil {
 		if err := a.Managed.Recover(ctx); err != nil {
 			a.Log.Error("managed superuser recovery failed", "error", err)
+		}
+	}
+	if a.PBAdmin != nil {
+		if err := a.PBAdmin.Recover(ctx); err != nil {
+			a.Log.Error("PocketBase admin recovery failed", "error", err)
 		}
 	}
 	recovered, err := a.Jobs.Recover(ctx)

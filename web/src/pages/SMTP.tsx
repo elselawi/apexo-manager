@@ -87,7 +87,11 @@ export function SMTPPage() {
         actions={canWrite ? <Button variant="primary" icon={<Plus size={16} />} onClick={() => { setEditing(null); setModalOpen(true); }}>New SMTP profile</Button> : null}
       />
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
-
+      <Notice tone="info" title="Profiles are optional deployment templates">
+        Existing instance SMTP settings are visible under the instance&apos;s <strong>Application settings</strong>.
+        You do not need a profile to keep them. A profile is used only when you want pbmanager to apply or change the
+        configuration; imported values leave the password blank because PocketBase never returns it.
+      </Notice>
       <Notice tone="info" title="Application requires a linked PocketBase superuser">
         Profiles can be created and tested at the infrastructure level. Applying a profile uses PocketBase&apos;s supported
         settings API and requires per-instance credentials. The manager never claims SMTP is operational merely because a

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/apexo/pbmanager/internal/cron"
@@ -28,7 +29,10 @@ type Manager struct {
 	Secrets *secret.Box
 	Systemd *systemd.Manager
 	Runner  platform.Runner
+	DataDir string
 	Log     *slog.Logger
+
+	mu sync.Mutex
 }
 
 type Settings struct {
@@ -146,6 +150,8 @@ func (m *Manager) ReadSettings(ctx context.Context, id string) (*Settings, error
 }
 
 func (m *Manager) UpdateSettings(ctx context.Context, id string, in Settings) (*Settings, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	inst, err := m.Store.GetInstance(ctx, id)
 	if err != nil {
 		return nil, err
@@ -193,6 +199,8 @@ func (m *Manager) ListBackups(ctx context.Context, id string) ([]pocketbase.Back
 }
 
 func (m *Manager) CreateBackup(ctx context.Context, id string) (pocketbase.BackupInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	inst, err := m.Store.GetInstance(ctx, id)
 	if err != nil {
 		return pocketbase.BackupInfo{}, err
@@ -209,6 +217,8 @@ func (m *Manager) CreateBackup(ctx context.Context, id string) (pocketbase.Backu
 }
 
 func (m *Manager) DeleteBackup(ctx context.Context, id, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	inst, err := m.Store.GetInstance(ctx, id)
 	if err != nil {
 		return err
@@ -221,6 +231,8 @@ func (m *Manager) DeleteBackup(ctx context.Context, id, key string) error {
 }
 
 func (m *Manager) RestoreBackup(ctx context.Context, id, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	inst, err := m.Store.GetInstance(ctx, id)
 	if err != nil {
 		return err
@@ -283,6 +295,8 @@ func (m *Manager) ListSuperusers(ctx context.Context, id string) ([]pocketbase.S
 }
 
 func (m *Manager) CreateSuperuser(ctx context.Context, id, email, password string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	email = strings.TrimSpace(strings.ToLower(email))
 	if _, err := mail.ParseAddress(email); err != nil {
 		return errors.New("invalid email address")
@@ -307,16 +321,33 @@ func (m *Manager) CreateSuperuser(ctx context.Context, id, email, password strin
 			return errors.New("a superuser with that email already exists")
 		}
 	}
-	return m.withServiceStopped(ctx, inst, func() error {
+	if err := m.withServiceStopped(ctx, inst, func() error {
 		_, stderr, err := m.runSuperuser(ctx, inst, "upsert", email, password)
 		if err != nil {
 			return fmt.Errorf("create superuser: %s", commandError(err, stderr))
 		}
 		return nil
-	}, true)
+	}, true); err != nil {
+		return err
+	}
+	return m.verifyGeneratedCredentials(ctx, inst, email, password)
+}
+
+func (m *Manager) verifyGeneratedCredentials(ctx context.Context, inst *store.Instance, email, password string) error {
+	st, err := m.Systemd.Status(ctx, inst.ServiceName)
+	if err != nil || !st.Running {
+		return nil
+	}
+	_, err = pocketbase.New(inst.Port).AuthSession(ctx, email, password)
+	if err != nil {
+		return fmt.Errorf("created superuser could not authenticate: %w", err)
+	}
+	return nil
 }
 
 func (m *Manager) UpdateSuperuser(ctx context.Context, id, recordID, email, password string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	email = strings.TrimSpace(strings.ToLower(email))
 	if _, err := mail.ParseAddress(email); err != nil {
 		return errors.New("invalid email address")
@@ -353,7 +384,7 @@ func (m *Manager) UpdateSuperuser(ctx context.Context, id, recordID, email, pass
 			}
 		}
 	}
-	return m.withServiceStopped(ctx, inst, func() error {
+	if err := m.withServiceStopped(ctx, inst, func() error {
 		if _, stderr, err := m.runSuperuser(ctx, inst, "upsert", email, password); err != nil {
 			return fmt.Errorf("update superuser: %s", commandError(err, stderr))
 		}
@@ -363,10 +394,15 @@ func (m *Manager) UpdateSuperuser(ctx context.Context, id, recordID, email, pass
 			}
 		}
 		return nil
-	}, true)
+	}, true); err != nil {
+		return err
+	}
+	return m.verifyGeneratedCredentials(ctx, inst, email, password)
 }
 
 func (m *Manager) DeleteSuperuser(ctx context.Context, id, recordID, confirmation string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if confirmation == "" {
 		return errors.New("confirmation is required")
 	}
@@ -455,6 +491,8 @@ func (m *Manager) ListAuthUsers(ctx context.Context, id, collectionID string) ([
 }
 
 func (m *Manager) CreateAuthUser(ctx context.Context, id, collectionID string, data map[string]interface{}) (map[string]interface{}, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if err := normalizeUserInput(data, true); err != nil {
 		return nil, err
 	}
@@ -473,6 +511,8 @@ func (m *Manager) CreateAuthUser(ctx context.Context, id, collectionID string, d
 }
 
 func (m *Manager) UpdateAuthUser(ctx context.Context, id, collectionID, recordID string, data map[string]interface{}) (map[string]interface{}, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if err := normalizeUserInput(data, false); err != nil {
 		return nil, err
 	}
@@ -491,6 +531,8 @@ func (m *Manager) UpdateAuthUser(ctx context.Context, id, collectionID, recordID
 }
 
 func (m *Manager) DeleteAuthUser(ctx context.Context, id, collectionID, recordID, confirmation string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if confirmation == "" {
 		return errors.New("confirmation is required")
 	}
@@ -524,6 +566,92 @@ func ensureAuthCollection(ctx context.Context, client *pocketbase.Client, token,
 	return errors.New("auth collection not found")
 }
 
+type serviceJournal struct {
+	InstanceID  string `json:"instanceId"`
+	ServiceName string `json:"serviceName"`
+	WasRunning  bool   `json:"wasRunning"`
+}
+
+func (m *Manager) journalDir() string {
+	if m.DataDir == "" {
+		return ""
+	}
+	return filepath.Join(m.DataDir, "admin-ops")
+}
+
+func (m *Manager) writeServiceJournal(inst *store.Instance, wasRunning bool) (string, error) {
+	dir := m.journalDir()
+	if dir == "" {
+		return "", nil
+	}
+	if err := platform.EnsureDir(dir, 0o700); err != nil {
+		return "", err
+	}
+	j := serviceJournal{InstanceID: inst.ID, ServiceName: inst.ServiceName, WasRunning: wasRunning}
+	raw, _ := json.MarshalIndent(j, "", "  ")
+	path := filepath.Join(dir, inst.ID+".json")
+	return path, platform.AtomicWrite(path, raw, 0o600)
+}
+
+func (m *Manager) removeServiceJournal(path string) {
+	if path != "" {
+		_ = os.Remove(path)
+	}
+}
+
+// Recover restores a service left stopped by a crashed admin operation.
+func (m *Manager) Recover(ctx context.Context) error {
+	dir := m.journalDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	var errs []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
+		}
+		var j serviceJournal
+		if err := json.Unmarshal(raw, &j); err != nil {
+			continue
+		}
+		if !j.WasRunning || j.ServiceName == "" {
+			_ = os.Remove(filepath.Join(dir, entry.Name()))
+			continue
+		}
+		var port int
+		if m.Store != nil {
+			if inst, err := m.Store.GetInstance(ctx, j.InstanceID); err == nil {
+				port = inst.Port
+			}
+		}
+		_ = m.Systemd.ResetFailed(ctx, j.ServiceName)
+		if err := m.Systemd.Start(ctx, j.ServiceName); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", j.ServiceName, err))
+			continue
+		}
+		if port > 0 {
+			if err := pocketbase.New(port).WaitHealthy(ctx, 90*time.Second); err != nil {
+				errs = append(errs, fmt.Sprintf("%s health: %v", j.ServiceName, err))
+				continue
+			}
+		}
+		_ = os.Remove(filepath.Join(dir, entry.Name()))
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 func (m *Manager) auth(ctx context.Context, inst *store.Instance) (*pocketbase.Client, string, error) {
 	if inst.PBSuperuserEmail == "" || inst.PBSuperuserSecret == "" {
 		return nil, "", errors.New("link or create a managed PocketBase superuser first")
@@ -549,8 +677,21 @@ func (m *Manager) withServiceStopped(ctx context.Context, inst *store.Instance, 
 		return fmt.Errorf("systemd unit %s does not exist", inst.ServiceName)
 	}
 	wasRunning := st.Running
+	journalPath, journalErr := m.writeServiceJournal(inst, wasRunning)
+	if journalErr != nil {
+		return journalErr
+	}
+	keepJournal := false
+	defer func() {
+		if !keepJournal {
+			m.removeServiceJournal(journalPath)
+		}
+	}()
 	if wasRunning {
 		if err := m.Systemd.Stop(ctx, inst.ServiceName); err != nil {
+			return err
+		}
+		if err := m.waitStopped(ctx, inst.ServiceName); err != nil {
 			return err
 		}
 	}
@@ -558,6 +699,7 @@ func (m *Manager) withServiceStopped(ctx context.Context, inst *store.Instance, 
 	if wasRunning {
 		_ = m.Systemd.ResetFailed(ctx, inst.ServiceName)
 		if err := m.Systemd.Start(ctx, inst.ServiceName); err != nil {
+			keepJournal = true
 			if runErr != nil {
 				return fmt.Errorf("%v; restart failed: %w", runErr, err)
 			}
@@ -565,6 +707,7 @@ func (m *Manager) withServiceStopped(ctx context.Context, inst *store.Instance, 
 		}
 		if verify {
 			if err := pocketbase.New(inst.Port).WaitHealthy(ctx, 90*time.Second); err != nil {
+				keepJournal = true
 				if runErr != nil {
 					return fmt.Errorf("%v; health check failed: %w", runErr, err)
 				}
@@ -573,6 +716,18 @@ func (m *Manager) withServiceStopped(ctx context.Context, inst *store.Instance, 
 		}
 	}
 	return runErr
+}
+
+func (m *Manager) waitStopped(ctx context.Context, service string) error {
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		st, err := m.Systemd.Status(ctx, service)
+		if err == nil && !st.Running {
+			return nil
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return errors.New("service did not stop")
 }
 
 func (m *Manager) runSuperuser(ctx context.Context, inst *store.Instance, action, email, password string) ([]byte, []byte, error) {

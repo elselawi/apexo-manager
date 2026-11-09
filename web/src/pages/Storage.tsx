@@ -92,6 +92,11 @@ export function StoragePage() {
         actions={canWrite ? <Button variant="primary" icon={<Plus size={16} />} onClick={() => { setEditing(null); setModalOpen(true); }}>New storage profile</Button> : null}
       />
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
+      <Notice tone="info" title="Profiles are optional deployment templates">
+        Existing instance S3 settings are visible under the instance&apos;s <strong>Application settings</strong>.
+        You do not need a profile to keep them. A profile is used only when you want pbmanager to apply or change the
+        configuration; imported values leave the secret key blank because PocketBase never returns it.
+      </Notice>
       <Notice tone="info" title="Validation and application are separate">
         Credentials are validated with a signed ListObjectsV2 request. Applying to PocketBase requires a linked
         superuser and uses the documented settings API. Secrets are encrypted at rest and never returned.
