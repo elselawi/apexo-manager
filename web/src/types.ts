@@ -98,6 +98,8 @@ export interface Domain {
   tlsExpiresAt?: string;
   lastCheckedAt?: string;
   lastError?: string;
+  hostedActive: boolean;
+  hostedMessage: string;
   createdAt: string;
   updatedAt: string;
 }

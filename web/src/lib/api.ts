@@ -327,6 +327,10 @@ export const api = {
     return request("POST", `/api/v1/domains/${encodeURIComponent(id)}/check`, {});
   },
 
+  setDomainStatus(id: string, active: boolean, message: string): Promise<{ domain: Domain }> {
+    return request("PATCH", `/api/v1/domains/${encodeURIComponent(id)}/status`, { active, message });
+  },
+
   caddy(): Promise<CaddyConfigView> {
     return request("GET", "/api/v1/caddy");
   },

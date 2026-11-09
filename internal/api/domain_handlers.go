@@ -86,6 +86,36 @@ func (s *Server) handleDetachDomain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"job": job})
 }
 
+func (s *Server) handleDomainStatus(w http.ResponseWriter, r *http.Request) {
+	d, err := s.App.Store.GetDomain(r.Context(), r.PathValue("id"))
+	if notFoundOr(w, r, err, "Domain") {
+		return
+	}
+	var in struct {
+		Active  bool   `json:"active"`
+		Message string `json:"message"`
+	}
+	if err := decodeJSON(w, r, &in); err != nil {
+		writeError(w, r, http.StatusBadRequest, "invalid_body", err.Error(), nil)
+		return
+	}
+	if len(in.Message) > 2000 {
+		writeError(w, r, http.StatusBadRequest, "message_too_long", "Message must be 2000 characters or fewer", nil)
+		return
+	}
+	if err := s.App.Store.SetDomainStatus(r.Context(), d.ID, in.Active, in.Message); err != nil {
+		if notFoundOr(w, r, err, "Domain") {
+			return
+		}
+		writeError(w, r, http.StatusInternalServerError, "status_update_failed", "Could not update domain status", nil)
+		return
+	}
+	s.audit(r, "domain.status_updated", "domain", d.ID, map[string]any{"active": in.Active})
+	d.HostedActive = in.Active
+	d.HostedMessage = in.Message
+	writeJSON(w, http.StatusOK, map[string]any{"domain": d})
+}
+
 func (s *Server) handleCheckDomain(w http.ResponseWriter, r *http.Request) {
 	d, err := s.App.Store.GetDomain(r.Context(), r.PathValue("id"))
 	if notFoundOr(w, r, err, "Domain") {

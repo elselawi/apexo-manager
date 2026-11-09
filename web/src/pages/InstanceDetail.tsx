@@ -91,6 +91,7 @@ export function InstanceDetailPage() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [domainOpen, setDomainOpen] = useState(false);
   const [detachDomain, setDetachDomain] = useState<Domain | null>(null);
+  const [statusDomain, setStatusDomain] = useState<Domain | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [restoreBackup, setRestoreBackup] = useState<Backup | null>(null);
   const [logs, setLogs] = useState("");
@@ -264,12 +265,13 @@ export function InstanceDetailPage() {
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
-                  <tr><th>Hostname</th><th>DNS</th><th>Caddy</th><th>TLS</th><th>Managed</th><th>Checked</th><th /></tr>
+                  <tr><th>Hostname</th><th>Status</th><th>DNS</th><th>Caddy</th><th>TLS</th><th>Managed</th><th>Checked</th><th /></tr>
                 </thead>
                 <tbody>
                   {domains.map((domain) => (
                     <tr key={domain.id}>
                       <td><strong>{domain.hostname}</strong>{domain.proxied ? <Badge tone="warning">Proxied</Badge> : null}</td>
+                      <td><Badge tone={domain.hostedActive ? "success" : "danger"}>{domain.hostedActive ? "active" : "inactive"}</Badge>{domain.hostedMessage ? <div className="muted small">{domain.hostedMessage}</div> : null}</td>
                       <td><StatusBadge status={domain.dnsStatus} /></td>
                       <td><StatusBadge status={domain.caddyStatus} /></td>
                       <td><StatusBadge status={domain.tlsStatus} /></td>
@@ -279,6 +281,7 @@ export function InstanceDetailPage() {
                         <Button size="sm" variant="ghost" onClick={() => void api.checkDomain(domain.id).then(() => { toast.success("Domain checked"); refresh(); }).catch((err) => toast.error("Check failed", errorMessage(err)))}>
                           Check
                         </Button>
+                        {canWrite ? <Button size="sm" variant="ghost" onClick={() => setStatusDomain(domain)}>Status</Button> : null}
                         {canWrite ? <IconButton label="Remove domain" onClick={() => setDetachDomain(domain)}><Trash2 size={15} /></IconButton> : null}
                       </td>
                     </tr>
@@ -348,6 +351,11 @@ export function InstanceDetailPage() {
         instanceName={instance.name}
         onClose={() => setDomainOpen(false)}
         onCreated={(domain) => { refresh(); if (domain.dnsStatus === "pending" || domain.caddyStatus === "pending") toast.info("Domain attached", "Integration job queued."); }}
+      />
+      <DomainStatusModal
+        domain={statusDomain}
+        onClose={() => setStatusDomain(null)}
+        onSaved={() => { setStatusDomain(null); refresh(); }}
       />
       <DetachDomainModal
         domain={detachDomain}
@@ -1325,6 +1333,65 @@ function DeleteInstanceModal({
         <Field label={`Type ${instance.name} to confirm`}>
           <Input value={confirm} onChange={(event) => setConfirm(event.target.value)} autoFocus />
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function DomainStatusModal({
+  domain,
+  onClose,
+  onSaved,
+}: {
+  domain: Domain | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [active, setActive] = useState(true);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!domain) return;
+    setActive(domain.hostedActive);
+    setMessage(domain.hostedMessage ?? "");
+    setError(null);
+  }, [domain]);
+
+  async function save() {
+    if (!domain) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setDomainStatus(domain.id, active, message);
+      toast.success("Hosted status updated");
+      onSaved();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={Boolean(domain)}
+      onClose={onClose}
+      title={`Hosted status · ${domain?.hostname ?? ""}`}
+      footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" onClick={() => void save()} loading={busy}>Save status</Button></>}
+    >
+      <div className="stack">
+        {error ? <div className="form-error">{error}</div> : null}
+        <Switch checked={active} onChange={setActive} label="Active" description="Apps that read this status receive active=true or active=false." />
+        <Field label="Message" hint="Returned to apps alongside the active field.">
+          <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={4} maxLength={2000} />
+        </Field>
+        <Notice tone="warning">
+          Changing this does not restart or modify the PocketBase instance; it only changes the status returned for this
+          hostname.
+        </Notice>
       </div>
     </Modal>
   );

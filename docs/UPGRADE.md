@@ -29,8 +29,8 @@ Requirements:
 Publishing a release is handled by `.github/workflows/release.yml`:
 
 ```bash
-git tag v1.0.9
-git push origin v1.0.9
+git tag v1.0.10
+git push origin v1.0.10
 ```
 
 The workflow builds the embedded frontend, runs the tests, cross-compiles Linux amd64/arm64, writes `checksums.txt`, and creates the GitHub release.

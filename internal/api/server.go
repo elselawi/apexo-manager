@@ -66,6 +66,8 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /hosted/{hostname}", s.handleHostedStatus)
+	s.mux.HandleFunc("OPTIONS /hosted/{hostname}", s.handleHostedOptions)
 	s.mux.HandleFunc("GET /api/v1/auth/status", s.handleAuthStatus)
 	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
 
@@ -126,6 +128,7 @@ func (s *Server) routes() {
 	s.protected("POST /api/v1/instances/{id}/domains", "admin", s.handleAttachDomain)
 	s.protected("DELETE /api/v1/domains/{id}", "admin", s.handleDetachDomain)
 	s.protected("POST /api/v1/domains/{id}/check", "viewer", s.handleCheckDomain)
+	s.protected("PATCH /api/v1/domains/{id}/status", "admin", s.handleDomainStatus)
 
 	s.protected("GET /api/v1/caddy", "viewer", s.handleCaddy)
 	s.protected("POST /api/v1/caddy/ensure-import", "admin", s.handleCaddyEnsureImport)

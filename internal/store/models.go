@@ -115,6 +115,8 @@ type Domain struct {
 	TLSExpiresAt        string `json:"tlsExpiresAt,omitempty"`
 	LastCheckedAt       string `json:"lastCheckedAt,omitempty"`
 	LastError           string `json:"lastError,omitempty"`
+	HostedActive        bool   `json:"hostedActive"`
+	HostedMessage       string `json:"hostedMessage"`
 	CreatedAt           string `json:"createdAt"`
 	UpdatedAt           string `json:"updatedAt"`
 }
