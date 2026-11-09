@@ -30,7 +30,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback(
     (tone: ToastTone, title: string, message?: string) => {
       const id = ++counter;
-      setToasts((list) => [...list.slice(-4), { id, tone, title, message }]);
+      setToasts((list) => {
+        // A completed job can be observed by more than one mounted progress
+        // component (or by a re-render). Keep a single visible copy.
+        if (list.some((t) => t.title === title && t.message === message)) return list;
+        return [...list.slice(-4), { id, tone, title, message }];
+      });
       window.setTimeout(() => remove(id), tone === "error" ? 8000 : 4500);
     },
     [remove],

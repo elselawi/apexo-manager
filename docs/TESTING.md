@@ -108,6 +108,14 @@ PocketBase admin integration:
 - Chrome loaded the PocketBase admin tab with settings, native backups, superusers, and auth users sections and the save-confirmation dialog.
 - Final local health after the admin build: `{"service":"pbmanager","status":"ok","version":"1.0.7"}`.
 
+Toast notification regression:
+
+- The repeated-toast bug was reproduced as an inline `onFinished` callback in `JobProgress`'s effect dependency. Every parent re-render restarted the effect, reset the per-run `finished` guard, and fired the completion toast again.
+- The callback is now held in a ref and the effect depends only on `jobId`.
+- `ToastProvider` additionally suppresses an identical visible `title + message` pair.
+- Browser test: clicking **Repair now** produced one **Operation completed** toast and one separate **Managed credential job queued** toast; after seven seconds, no toasts remained.
+- Final local health after the fix: `{"service":"pbmanager","status":"ok","version":"1.0.8"}`.
+
 Real Caddy validation test:
 
 ```bash

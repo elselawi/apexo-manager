@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import { api } from "../lib/api";
 import type { Job, JobStep } from "../types";
@@ -18,6 +18,11 @@ export function JobProgress({
 }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const onFinishedRef = useRef(onFinished);
+
+  useEffect(() => {
+    onFinishedRef.current = onFinished;
+  }, [onFinished]);
 
   useEffect(() => {
     let active = true;
@@ -32,7 +37,7 @@ export function JobProgress({
         if (["succeeded", "failed", "canceled"].includes(result.job.status)) {
           if (!finished) {
             finished = true;
-            onFinished?.(result.job);
+            onFinishedRef.current?.(result.job);
           }
           return;
         }
@@ -46,7 +51,7 @@ export function JobProgress({
       active = false;
       if (timer) window.clearTimeout(timer);
     };
-  }, [jobId, onFinished]);
+  }, [jobId]);
 
   if (!job) {
     return (
