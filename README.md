@@ -43,11 +43,11 @@ This manager is built around a few non-negotiable rules:
 Push a version tag to publish Linux `amd64`/`arm64` binaries and a `checksums.txt` through the included GitHub Actions workflow:
 
 ```bash
-git tag v1.0.3
-git push origin v1.0.3
+git tag v1.0.4
+git push origin v1.0.4
 ```
 
-Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. The first transition from a version older than 1.0.3 must be done once with `deploy-remote.sh` or the installer, because older builds do not include the self-update endpoint.
+Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. Deploy a self-updating build (1.0.3 or newer) once with `deploy-remote.sh` or the installer; after that, subsequent updates can be installed from the dashboard.
 
 ### Domains, Caddy, and Cloudflare
 
@@ -63,6 +63,7 @@ Owners can then use **Server configuration → Manager updates → Check GitHub 
 - Multiple SMTP profiles with STARTTLS/TLS/plain (loopback only) and PLAIN/LOGIN authentication.
 - Multiple S3-compatible storage profiles with signed `ListObjectsV2` validation.
 - Apply SMTP/S3 settings through PocketBase's documented `/api/settings` endpoint; no direct database modification.
+- Optional linked superuser for recurring native backups, or a short-lived superuser for one-shot manual operations when no credential is linked.
 - Scheduled backups with cron expressions (UTC), retention, and verification.
 - **Native backups** use PocketBase's official backup API for a consistent database snapshot, then bundle uploads, the systemd unit, Caddy snippets, and instance metadata into one verified archive.
 - **Fallback snapshots** use SQLite `VACUUM INTO` plus uploads and configuration when application credentials are not linked.

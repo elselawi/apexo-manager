@@ -9,6 +9,21 @@ They use different backup paths and should both be protected.
 
 ## Instance backups
 
+### Credentials and ephemeral mode
+
+Native backups use the linked superuser when one is available. If the instance has **no linked superuser**, a manual native backup uses a short-lived generated superuser:
+
+1. journal the temporary account,
+2. stop the service,
+3. create the account through PocketBase's official CLI,
+4. start and wait for health,
+5. authenticate and run the native backup,
+6. stop, delete the account, restore the prior running state, and remove the journal.
+
+Scheduled native backups never use this path because a schedule must not introduce downtime. Unlinked scheduled backups use the safe SQLite snapshot instead. If the manager crashes during an ephemeral operation, startup recovery removes the orphaned account and restores the service.
+
+This means an unlinked instance can still use manual native backups and SMTP/S3 apply without a permanent superuser, at the cost of one short stop/start per manual operation.
+
 ### Methods
 
 #### `pocketbase_native` (preferred)

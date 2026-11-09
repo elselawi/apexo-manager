@@ -14,6 +14,7 @@ import (
 
 	"github.com/apexo/pbmanager/internal/platform"
 	"github.com/apexo/pbmanager/internal/secret"
+	"github.com/apexo/pbmanager/internal/services/pbauth"
 	"github.com/apexo/pbmanager/internal/services/pocketbase"
 	"github.com/apexo/pbmanager/internal/services/systemd"
 	"github.com/apexo/pbmanager/internal/settings"
@@ -30,6 +31,7 @@ type Manager struct {
 	Runner  platform.Runner
 	Cfg     func() settings.Config
 	Systemd *systemd.Manager
+	PBAuth  *pbauth.Manager
 	Log     *slog.Logger
 }
 
@@ -90,33 +92,44 @@ func (m *Manager) Create(ctx context.Context, inst *store.Instance, automatic bo
 
 	client, token, authErr := m.auth(ctx, inst)
 	if authErr == nil && client != nil {
-		report("Using PocketBase's official backup API")
-		tmp, err := os.CreateTemp(root, ".native-*.zip")
-		if err != nil {
-			return fail(err)
-		}
-		nativeZip := tmp.Name()
-		_ = tmp.Close()
-		if err := m.nativeBackup(ctx, inst, client, token, nativeZip, report); err == nil {
-			report("Bundling PocketBase database backup with uploads and configuration")
-			if err := m.packageNativeBundle(ctx, inst, nativeZip, b.Path); err != nil {
-				report("Native backup packaging failed; falling back to a consistent SQLite snapshot: " + truncate(err.Error(), 300))
-				_ = os.Remove(nativeZip)
-			} else {
-				_ = os.Remove(nativeZip)
-				b.Method = MethodNative
-				b.Filename = filepath.Base(b.Path)
-				if err := m.finishBackup(ctx, b, func(ctx context.Context) error { return ValidateTarBackup(ctx, b.Path) }); err != nil {
-					return fail(err)
-				}
-				return b, nil
+		native, nativeErr := m.tryNative(ctx, inst, client, token, root, b, report)
+		if native {
+			if nativeErr != nil {
+				return fail(nativeErr)
 			}
-		} else {
-			report("Official backup failed; falling back to a consistent SQLite snapshot: " + truncate(err.Error(), 300))
-			_ = os.Remove(nativeZip)
+			return b, nil
+		}
+		if nativeErr != nil {
+			report("Official backup failed; falling back to a consistent SQLite snapshot: " + truncate(nativeErr.Error(), 300))
 		}
 	} else if authErr != nil {
-		report("PocketBase application authentication unavailable; using infrastructure-level SQLite snapshot")
+		if m.PBAuth != nil && m.PBAuth.Linked(inst) {
+			report("Linked PocketBase credentials failed; falling back to a consistent SQLite snapshot")
+		} else if automatic {
+			// Scheduled native backups would require stopping and restarting the
+			// service to create a temporary superuser. Use the safe live SQLite
+			// snapshot instead so a schedule never introduces downtime.
+			report("No linked PocketBase superuser; scheduled backup uses the safe SQLite snapshot")
+		} else if m.PBAuth != nil {
+			report("No linked PocketBase superuser; trying a short-lived superuser for this manual backup")
+			err := m.PBAuth.With(ctx, inst, "manual-native-backup", func(client *pocketbase.Client, token string) error {
+				native, nativeErr := m.tryNative(ctx, inst, client, token, root, b, report)
+				if native && nativeErr != nil {
+					return nativeErr
+				}
+				if !native && nativeErr != nil {
+					return nativeErr
+				}
+				return nil
+			})
+			if err == nil && b.Method == MethodNative {
+				return b, nil
+			}
+			if b.Method == MethodNative {
+				return fail(err)
+			}
+			report("Short-lived superuser backup failed; falling back to a consistent SQLite snapshot: " + truncate(err.Error(), 300))
+		}
 	}
 	report("Snapshotting SQLite database safely with VACUUM INTO")
 	if err := m.snapshotBackup(ctx, inst, b.Path); err != nil {
@@ -126,6 +139,32 @@ func (m *Manager) Create(ctx context.Context, inst *store.Instance, automatic bo
 		return fail(err)
 	}
 	return b, nil
+}
+
+func (m *Manager) tryNative(ctx context.Context, inst *store.Instance, client *pocketbase.Client, token, root string, b *store.Backup, report Reporter) (bool, error) {
+	report("Using PocketBase's official backup API")
+	tmp, err := os.CreateTemp(root, ".native-*.zip")
+	if err != nil {
+		return false, err
+	}
+	nativeZip := tmp.Name()
+	_ = tmp.Close()
+	if err := m.nativeBackup(ctx, inst, client, token, nativeZip, report); err != nil {
+		_ = os.Remove(nativeZip)
+		return false, err
+	}
+	report("Bundling PocketBase database backup with uploads and configuration")
+	if err := m.packageNativeBundle(ctx, inst, nativeZip, b.Path); err != nil {
+		_ = os.Remove(nativeZip)
+		return false, err
+	}
+	_ = os.Remove(nativeZip)
+	b.Method = MethodNative
+	b.Filename = filepath.Base(b.Path)
+	if err := m.finishBackup(ctx, b, func(ctx context.Context) error { return ValidateTarBackup(ctx, b.Path) }); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func (m *Manager) auth(ctx context.Context, inst *store.Instance) (*pocketbase.Client, string, error) {

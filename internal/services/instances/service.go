@@ -22,6 +22,7 @@ import (
 	"github.com/apexo/pbmanager/internal/services/backup"
 	"github.com/apexo/pbmanager/internal/services/caddy"
 	"github.com/apexo/pbmanager/internal/services/dns"
+	"github.com/apexo/pbmanager/internal/services/pbauth"
 	"github.com/apexo/pbmanager/internal/services/systemd"
 	"github.com/apexo/pbmanager/internal/settings"
 	"github.com/apexo/pbmanager/internal/store"
@@ -36,6 +37,7 @@ type Service struct {
 	Caddy   *caddy.Manager
 	DNS     *dns.Manager
 	Backup  *backup.Manager
+	PBAuth  *pbauth.Manager
 	Runner  platform.Runner
 	Jobs    *jobs.Engine
 	Log     *slog.Logger

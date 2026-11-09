@@ -324,6 +324,24 @@ Observed config after rerun:
 - Discovery modal executed in Chrome against the live manager: three tracked candidates, no console errors, no fatal screen. The earlier crash was caused by a nil `warnings` slice serializing as `null`; the backend now returns `[]` and the UI defaults both arrays.
 - Settings page manager-update card executed in Chrome against the live manager: current version, GitHub check, and "No releases" state render without errors.
 
+## Ephemeral superuser mode
+
+`clinic-b` was unlinked through `DELETE /instances/{id}/credentials`. Its PocketBase `_superusers` table initially contained only `admin@clinic-b.pbmanager.local`.
+
+A manual `backup create clinic-b` then:
+
+- created a temporary `ephemeral-*@pbmanager.local` superuser through the official CLI,
+- completed a native PocketBase backup,
+- deleted the temporary superuser,
+- left only `admin@clinic-b.pbmanager.local` in `_superusers`,
+- left `/var/lib/pbmanager/ephemeral` empty,
+- restored `clinic-b` to active/healthy,
+- completed in about 3.1 seconds.
+
+The same test was run with `clinic-b` initially stopped. The manager started it for the operation, created/used/deleted the temporary superuser, and **left it stopped afterward**, restoring the original state. It was then started manually for the demo.
+
+A unit test covers journal recovery: an orphan journal causes `Recover` to stop the service, run `superuser delete`, restart the prior running state, and remove the journal. SMTP/S3 apply uses the same `pbauth.With` lifecycle, though a live SMTP/S3 apply was not available.
+
 ## What was not tested against real providers
 
 - Cloudflare: tested with a fake API server, not a live token/zone. No token was available.

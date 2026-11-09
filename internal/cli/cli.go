@@ -649,6 +649,13 @@ func maybeStartLocalWorker(ctx context.Context, app *appcore.App) (context.Cance
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
+	if app.PBAuth != nil {
+		if err := app.PBAuth.Recover(workerCtx); err != nil {
+			cancel()
+			app.ReleaseWorker()
+			return nil, nil, err
+		}
+	}
 	go func() {
 		defer close(done)
 		app.Jobs.Start(workerCtx)

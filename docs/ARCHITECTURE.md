@@ -94,6 +94,15 @@ The durable job contains ordered steps:
 
 Each step is checkpointed. A retry skips completed steps. A crash requeues the running job and resets the running step to pending. Provisioning refuses to overwrite unmanaged directories, unit files, or files without the manager marker.
 
+## PocketBase application credentials
+
+Application-level operations need a PocketBase superuser. Two modes are supported:
+
+- **Linked**: a dedicated superuser is stored encrypted. This is used for recurring native backups and fast SMTP/S3 operations without stopping the app.
+- **Ephemeral**: when no linked credential exists, the manager creates a random temporary superuser through PocketBase's official CLI for the duration of one manual operation, authenticates, performs the work, then removes it. The service is briefly stopped for creation and deletion.
+
+An ephemeral operation writes a journal under `<dataDir>/ephemeral/` before creating the account. Startup recovery removes orphaned accounts if the manager crashes mid-operation. Scheduled native backups deliberately do **not** use ephemeral mode because a schedule should not introduce downtime; unlinked scheduled backups use the safe SQLite snapshot instead.
+
 ## Self-update
 
 The manager can update itself from official GitHub releases:

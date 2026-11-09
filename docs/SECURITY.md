@@ -55,6 +55,24 @@ This manager runs as root and controls PocketBase processes, systemd units, Cadd
 - PocketBase superuser passwords created during provisioning are generated with `crypto/rand`, passed to the official CLI, and stored encrypted. They are not printed.
 - The secret key is required to restore profile credentials and linked PocketBase auth. Back it up separately.
 
+## Ephemeral PocketBase superusers
+
+When an instance has no linked PocketBase superuser, manual application-level operations can use a temporary account:
+
+- the account email/password are generated with `crypto/rand`,
+- the service is stopped before the official `superuser upsert` and before `superuser delete`,
+- the password is passed only to the local PocketBase CLI and is never stored, returned, or audited,
+- a journal under `<dataDir>/ephemeral/` makes cleanup durable,
+- cleanup restores the prior running/stopped state,
+- startup recovery deletes orphaned temporary accounts.
+
+Tradeoffs:
+
+- the app briefly stops and restarts for each manual operation,
+- the password is briefly visible in the local process argument list (a PocketBase CLI limitation),
+- scheduled native backups do not use this mode; they use SQLite snapshots when unlinked,
+- if cleanup fails, the operation fails and the journal is retained for recovery.
+
 ## Manager self-update
 
 - Releases are discovered from GitHub over HTTPS; the repository is fixed in the build (`elselawi/apexo-manager`), not supplied by the request.
@@ -124,6 +142,7 @@ Audited events include:
 - Cloudflare account and DNS changes
 - SMTP/storage profile changes and tests
 - backup create/verify/restore/delete
+- ephemeral superuser created/deleted
 - settings updates
 - CLI recovery actions and DB restore
 

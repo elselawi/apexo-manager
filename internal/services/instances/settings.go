@@ -91,6 +91,17 @@ func (s *Service) pbAuth(ctx context.Context, inst *store.Instance) (*pocketbase
 	return client, token, nil
 }
 
+func (s *Service) withPBAuth(ctx context.Context, inst *store.Instance, purpose string, fn func(*pocketbase.Client, string) error) error {
+	if s.PBAuth != nil {
+		return s.PBAuth.With(ctx, inst, purpose, fn)
+	}
+	client, token, err := s.pbAuth(ctx, inst)
+	if err != nil {
+		return err
+	}
+	return fn(client, token)
+}
+
 // ApplySMTP applies the assigned SMTP profile through the documented settings API.
 func (s *Service) ApplySMTP(ctx context.Context, ex *jobs.Execution) (any, error) {
 	inst, err := s.instanceFromPayload(ctx, ex)
@@ -122,36 +133,34 @@ func (s *Service) ApplySMTP(ctx context.Context, ex *jobs.Execution) (any, error
 	}); err != nil {
 		return nil, err
 	}
-	client, token, err := s.pbAuth(ctx, inst)
-	if err != nil {
-		_ = s.Store.SetApplyState(ctx, inst.ID, "smtp", "auth_missing", "", err.Error())
-		return nil, err
-	}
 	tlsOn := profile.TLSMode == "tls"
 	patch := pocketbase.SMTPPatch(profile.Host, profile.Port, profile.Username, password, profile.AuthMethod, tlsOn, profile.LocalName, profile.FromAddress, profile.FromName)
-	if err := ex.Step(ctx, "apply", "Apply SMTP settings via PocketBase's supported settings API", func(ctx context.Context) (string, error) {
-		if _, err := client.PatchSettings(ctx, token, patch); err != nil {
-			return "", err
+	if err := s.withPBAuth(ctx, inst, "apply-smtp", func(client *pocketbase.Client, token string) error {
+		if err := ex.Step(ctx, "apply", "Apply SMTP settings via PocketBase's supported settings API", func(ctx context.Context) (string, error) {
+			if _, err := client.PatchSettings(ctx, token, patch); err != nil {
+				return "", err
+			}
+			return "PocketBase accepted the SMTP settings", nil
+		}); err != nil {
+			return err
 		}
-		return "PocketBase accepted the SMTP settings", nil
+		return ex.Step(ctx, "verify", "Read back and verify the applied SMTP configuration", func(ctx context.Context) (string, error) {
+			settings, err := client.GetSettings(ctx, token)
+			if err != nil {
+				return "", err
+			}
+			smtp := pocketbase.SettingsSMTP(settings)
+			if smtp == nil || fmt.Sprint(smtp["host"]) != profile.Host || fmt.Sprint(smtp["port"]) != fmt.Sprint(profile.Port) {
+				return "", errors.New("PocketBase settings read-back does not match the applied SMTP profile")
+			}
+			if enabled, ok := smtp["enabled"].(bool); ok && !enabled {
+				return "", errors.New("PocketBase reports SMTP as disabled after applying the profile")
+			}
+			_ = s.Store.SetApplyState(ctx, inst.ID, "smtp", "applied", store.Now(), "")
+			return "SMTP settings verified by read-back", nil
+		})
 	}); err != nil {
-		return nil, err
-	}
-	if err := ex.Step(ctx, "verify", "Read back and verify the applied SMTP configuration", func(ctx context.Context) (string, error) {
-		settings, err := client.GetSettings(ctx, token)
-		if err != nil {
-			return "", err
-		}
-		smtp := pocketbase.SettingsSMTP(settings)
-		if smtp == nil || fmt.Sprint(smtp["host"]) != profile.Host || fmt.Sprint(smtp["port"]) != fmt.Sprint(profile.Port) {
-			return "", errors.New("PocketBase settings read-back does not match the applied SMTP profile")
-		}
-		if enabled, ok := smtp["enabled"].(bool); ok && !enabled {
-			return "", errors.New("PocketBase reports SMTP as disabled after applying the profile")
-		}
-		_ = s.Store.SetApplyState(ctx, inst.ID, "smtp", "applied", store.Now(), "")
-		return "SMTP settings verified by read-back", nil
-	}); err != nil {
+		_ = s.Store.SetApplyState(ctx, inst.ID, "smtp", "failed", "", truncate(err.Error(), 500))
 		return nil, err
 	}
 	return map[string]any{"instanceId": inst.ID, "status": "applied", "profileId": profile.ID}, nil
@@ -185,35 +194,33 @@ func (s *Service) ApplyStorage(ctx context.Context, ex *jobs.Execution) (any, er
 	}); err != nil {
 		return nil, err
 	}
-	client, token, err := s.pbAuth(ctx, inst)
-	if err != nil {
-		_ = s.Store.SetApplyState(ctx, inst.ID, "storage", "auth_missing", "", err.Error())
-		return nil, err
-	}
 	patch := pocketbase.S3Patch(profile.Endpoint, profile.Region, profile.Bucket, profile.AccessKey, secret, profile.ForcePathStyle)
-	if err := ex.Step(ctx, "apply", "Apply S3 settings via PocketBase's supported settings API", func(ctx context.Context) (string, error) {
-		if _, err := client.PatchSettings(ctx, token, patch); err != nil {
-			return "", err
+	if err := s.withPBAuth(ctx, inst, "apply-storage", func(client *pocketbase.Client, token string) error {
+		if err := ex.Step(ctx, "apply", "Apply S3 settings via PocketBase's supported settings API", func(ctx context.Context) (string, error) {
+			if _, err := client.PatchSettings(ctx, token, patch); err != nil {
+				return "", err
+			}
+			return "PocketBase accepted the S3 settings", nil
+		}); err != nil {
+			return err
 		}
-		return "PocketBase accepted the S3 settings", nil
+		return ex.Step(ctx, "verify", "Read back and verify the applied S3 configuration", func(ctx context.Context) (string, error) {
+			settings, err := client.GetSettings(ctx, token)
+			if err != nil {
+				return "", err
+			}
+			s3 := pocketbase.SettingsS3(settings)
+			if s3 == nil || fmt.Sprint(s3["bucket"]) != profile.Bucket || fmt.Sprint(s3["region"]) != profile.Region {
+				return "", errors.New("PocketBase settings read-back does not match the applied storage profile")
+			}
+			if enabled, ok := s3["enabled"].(bool); ok && !enabled {
+				return "", errors.New("PocketBase reports S3 as disabled after applying the profile")
+			}
+			_ = s.Store.SetApplyState(ctx, inst.ID, "storage", "applied", store.Now(), "")
+			return "S3 settings verified by read-back", nil
+		})
 	}); err != nil {
-		return nil, err
-	}
-	if err := ex.Step(ctx, "verify", "Read back and verify the applied S3 configuration", func(ctx context.Context) (string, error) {
-		settings, err := client.GetSettings(ctx, token)
-		if err != nil {
-			return "", err
-		}
-		s3 := pocketbase.SettingsS3(settings)
-		if s3 == nil || fmt.Sprint(s3["bucket"]) != profile.Bucket || fmt.Sprint(s3["region"]) != profile.Region {
-			return "", errors.New("PocketBase settings read-back does not match the applied storage profile")
-		}
-		if enabled, ok := s3["enabled"].(bool); ok && !enabled {
-			return "", errors.New("PocketBase reports S3 as disabled after applying the profile")
-		}
-		_ = s.Store.SetApplyState(ctx, inst.ID, "storage", "applied", store.Now(), "")
-		return "S3 settings verified by read-back", nil
-	}); err != nil {
+		_ = s.Store.SetApplyState(ctx, inst.ID, "storage", "failed", "", truncate(err.Error(), 500))
 		return nil, err
 	}
 	return map[string]any{"instanceId": inst.ID, "status": "applied", "profileId": profile.ID}, nil

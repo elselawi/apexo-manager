@@ -452,7 +452,8 @@ function OverviewTab({
           </div>
           <p className="muted small">
             Infrastructure operations work without PocketBase authentication. Linking a dedicated superuser enables
-            supported settings APIs and native backups.
+            recurring native backups and faster settings operations. Unlinked instances use a short-lived superuser for
+            manual application-level operations.
           </p>
         </Card>
         <Card title="Infrastructure actions">
@@ -575,15 +576,15 @@ function ApplicationTab({
               <strong>{instance.pbSuperuserEmail || "No superuser linked"}</strong>
               <p>
                 {instance.pbAuthStatus === "linked"
-                  ? "SMTP/S3 settings and native PocketBase backups use this account through documented APIs."
-                  : "Without a linked superuser, SMTP/S3 application settings and native backups are unavailable. Infrastructure management still works."}
+                  ? "SMTP/S3 settings, native backups, and scheduled native backups use this account through documented APIs."
+                  : "No linked credential. Manual SMTP/S3 apply and manual native backups use a short-lived superuser; scheduled backups use the safe SQLite snapshot. The instance briefly stops and restarts."}
               </p>
               {instance.pbAuthError ? <div className="form-error">{instance.pbAuthError}</div> : null}
             </div>
           </div>
           <Notice tone="info">
-            The manager never bypasses PocketBase authentication and never writes to internal PocketBase tables. Use a
-            dedicated superuser for this integration.
+            The manager never bypasses PocketBase authentication. Ephemeral mode uses PocketBase's official CLI to create
+            and remove a temporary superuser around one operation, with a cleanup journal.
           </Notice>
         </Card>
 

@@ -26,6 +26,7 @@ import (
 	"github.com/apexo/pbmanager/internal/services/dns"
 	"github.com/apexo/pbmanager/internal/services/instances"
 	"github.com/apexo/pbmanager/internal/services/monitor"
+	"github.com/apexo/pbmanager/internal/services/pbauth"
 	"github.com/apexo/pbmanager/internal/services/systemd"
 	"github.com/apexo/pbmanager/internal/services/update"
 	"github.com/apexo/pbmanager/internal/settings"
@@ -44,6 +45,7 @@ type App struct {
 	DNS       *dns.Manager
 	Backup    *backup.Manager
 	Instances *instances.Service
+	PBAuth    *pbauth.Manager
 	Jobs      *jobs.Engine
 	Monitor   *monitor.Service
 	Discovery *discovery.Service
@@ -88,9 +90,11 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 	caddyMgr := &caddy.Manager{Runner: runner, Config: cfgFunc, BackupDir: func() string { return settingsSvc.Get().BackupDir }, Log: log}
 	dnsMgr := &dns.Manager{Store: st, Secrets: box, Cfg: cfgFunc}
 	backupMgr := &backup.Manager{Store: st, Secrets: box, Runner: runner, Cfg: cfgFunc, Systemd: systemdMgr, Log: log}
+	pbAuth := &pbauth.Manager{Store: st, Secrets: box, Systemd: systemdMgr, Runner: runner, DataDir: cfg.DataDir, Log: log}
+	backupMgr.PBAuth = pbAuth
 	instSvc := &instances.Service{
 		Store: st, Secrets: box, Cfg: cfgFunc, Systemd: systemdMgr, Caddy: caddyMgr,
-		DNS: dnsMgr, Backup: backupMgr, Runner: runner, Log: log,
+		DNS: dnsMgr, Backup: backupMgr, Runner: runner, Log: log, PBAuth: pbAuth,
 	}
 	jobEngine := jobs.New(st, log, map[string]jobs.Handler{})
 	instSvc.Jobs = jobEngine
@@ -100,7 +104,7 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 		Config: cfg, Store: st, Secrets: box, Auth: auth.NewService(st, cfg.SessionTTL()),
 		Settings: settingsSvc, Systemd: systemdMgr, Caddy: caddyMgr, DNS: dnsMgr,
 		Backup: backupMgr, Instances: instSvc, Jobs: jobEngine, Monitor: monitorSvc,
-		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log,
+		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log, PBAuth: pbAuth,
 	}
 	app.registerHandlers()
 	return app, nil
@@ -150,6 +154,11 @@ func (a *App) Start(ctx context.Context) error {
 	}()
 	if err := a.Backup.RecoverInterrupted(ctx, func(msg string) { a.Log.Info(msg) }); err != nil {
 		a.Log.Error("interrupted restore recovery failed", "error", err)
+	}
+	if a.PBAuth != nil {
+		if err := a.PBAuth.Recover(ctx); err != nil {
+			a.Log.Error("ephemeral superuser recovery failed", "error", err)
+		}
 	}
 	recovered, err := a.Jobs.Recover(ctx)
 	if err != nil {
