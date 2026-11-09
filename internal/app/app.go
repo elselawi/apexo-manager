@@ -27,6 +27,7 @@ import (
 	"github.com/apexo/pbmanager/internal/services/instances"
 	"github.com/apexo/pbmanager/internal/services/managed"
 	"github.com/apexo/pbmanager/internal/services/monitor"
+	"github.com/apexo/pbmanager/internal/services/pbadmin"
 	"github.com/apexo/pbmanager/internal/services/systemd"
 	"github.com/apexo/pbmanager/internal/services/update"
 	"github.com/apexo/pbmanager/internal/settings"
@@ -46,6 +47,7 @@ type App struct {
 	Backup    *backup.Manager
 	Instances *instances.Service
 	Managed   *managed.Manager
+	PBAdmin   *pbadmin.Manager
 	Jobs      *jobs.Engine
 	Monitor   *monitor.Service
 	Discovery *discovery.Service
@@ -100,13 +102,14 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 		Store: st, Secrets: box, Systemd: systemdMgr, Jobs: jobEngine,
 		Runner: runner, DataDir: cfg.DataDir, Log: log,
 	}
+	pbAdmin := &pbadmin.Manager{Store: st, Secrets: box, Systemd: systemdMgr, Runner: runner, Log: log}
 	monitorSvc := &monitor.Service{Store: st, Cfg: cfgFunc, Systemd: systemdMgr, Caddy: caddyMgr, DataDir: cfg.DataDir, Log: log}
 	discoverySvc := &discovery.Service{Store: st, Cfg: cfgFunc}
 	app := &App{
 		Config: cfg, Store: st, Secrets: box, Auth: auth.NewService(st, cfg.SessionTTL()),
 		Settings: settingsSvc, Systemd: systemdMgr, Caddy: caddyMgr, DNS: dnsMgr,
 		Backup: backupMgr, Instances: instSvc, Jobs: jobEngine, Monitor: monitorSvc,
-		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log, Managed: managedMgr,
+		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log, Managed: managedMgr, PBAdmin: pbAdmin,
 	}
 	managedMgr.Register()
 	app.registerHandlers()

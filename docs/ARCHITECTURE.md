@@ -122,6 +122,26 @@ The endpoint is read-only and never returns SMTP passwords or S3 secret keys. Po
 
 Because PocketBase does not store a backup schedule, the manager cannot discover one. Its cron/retention policy remains manager-owned.
 
+## PocketBase administration
+
+The **PocketBase admin** tab provides bounded administration through documented APIs:
+
+- Typed settings for application metadata, SMTP, S3, backup cron/retention and backup S3, rate limits, trusted proxies, logs, and batch.
+- Native backup list/create/download/delete/restore.
+- Superuser list/create/update/delete through the official CLI, because PocketBase 0.23 does not expose mutation routes for `_superusers` records.
+- Auth-user list/create/update/delete for non-system auth collections.
+
+It intentionally does **not** expose collection schema management or application collection records. Auth records are the explicit identity exception.
+
+Guardrails:
+
+- writes require an owner/admin session and are audited;
+- the last superuser cannot be deleted;
+- destructive backup operations require confirmation;
+- settings can be locked down by rate limits or trusted proxies, so saving them requires confirmation;
+- SMTP/S3 secrets are write-only: omitted values preserve the stored secret;
+- editing a pbmanager-managed superuser is allowed but the UI warns that the watchdog will rebuild it.
+
 ## Self-update
 
 The manager can update itself from official GitHub releases:

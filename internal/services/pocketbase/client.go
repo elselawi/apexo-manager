@@ -192,8 +192,11 @@ func (c *Client) TestAuth(ctx context.Context, email, password string) (string, 
 // Superuser is the documented superuser record shape needed for identity
 // cleanup after an email rename.
 type Superuser struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
+	Created  string `json:"created"`
+	Updated  string `json:"updated"`
 }
 
 // ListSuperusers lists superuser records using the documented collection API.
@@ -205,6 +208,68 @@ func (c *Client) ListSuperusers(ctx context.Context, token string) ([]Superuser,
 		return nil, err
 	}
 	return out.Items, nil
+}
+
+// Collection is the documented collection metadata shape used by the admin UI.
+type Collection struct {
+	ID     string                 `json:"id"`
+	Name   string                 `json:"name"`
+	Type   string                 `json:"type"`
+	Fields []CollectionField      `json:"fields"`
+	Schema []CollectionField      `json:"schema"`
+	Raw    map[string]interface{} `json:"-"`
+}
+
+type CollectionField struct {
+	Name     string                 `json:"name"`
+	Type     string                 `json:"type"`
+	Required bool                   `json:"required"`
+	Options  map[string]interface{} `json:"options"`
+}
+
+// ListCollections lists collections using the documented management API.
+func (c *Client) ListCollections(ctx context.Context, token string) ([]Collection, error) {
+	var out struct {
+		Items []Collection `json:"items"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/collections?perPage=200&skipTotal=1", token, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+// ListRecords lists records for a collection using the documented API.
+func (c *Client) ListRecords(ctx context.Context, token, collectionID string, perPage int) ([]map[string]interface{}, error) {
+	if perPage <= 0 || perPage > 200 {
+		perPage = 100
+	}
+	var out struct {
+		Items []map[string]interface{} `json:"items"`
+	}
+	path := "/api/collections/" + url.PathEscape(collectionID) + "/records?perPage=" + strconv.Itoa(perPage) + "&skipTotal=1&sort=-created"
+	if err := c.do(ctx, http.MethodGet, path, token, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+// CreateRecord creates a record through the documented collection API.
+func (c *Client) CreateRecord(ctx context.Context, token, collectionID string, data map[string]interface{}) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	err := c.do(ctx, http.MethodPost, "/api/collections/"+url.PathEscape(collectionID)+"/records", token, data, &out)
+	return out, err
+}
+
+// UpdateRecord updates a record through the documented collection API.
+func (c *Client) UpdateRecord(ctx context.Context, token, collectionID, recordID string, data map[string]interface{}) (map[string]interface{}, error) {
+	var out map[string]interface{}
+	err := c.do(ctx, http.MethodPatch, "/api/collections/"+url.PathEscape(collectionID)+"/records/"+url.PathEscape(recordID), token, data, &out)
+	return out, err
+}
+
+// DeleteRecord deletes a record through the documented collection API.
+func (c *Client) DeleteRecord(ctx context.Context, token, collectionID, recordID string) error {
+	return c.do(ctx, http.MethodDelete, "/api/collections/"+url.PathEscape(collectionID)+"/records/"+url.PathEscape(recordID), token, nil, nil)
 }
 
 func jwtRecordID(token string) string {

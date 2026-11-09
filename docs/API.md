@@ -98,6 +98,16 @@ Missing/incorrect CSRF returns `403`.
 | POST | `/instances/{id}/verify` | viewer | Live health check. |
 | POST | `/instances/{id}/sync-caddy` | admin | Reconcile managed Caddy routes. |
 | GET | `/instances/{id}/application` | viewer | Read live SMTP/S3 settings and native PocketBase backup inventory. Secrets are never returned. |
+| GET/PATCH | `/instances/{id}/admin/settings` | admin | Read or update typed PocketBase settings. Empty secrets are preserved. |
+| GET/POST | `/instances/{id}/admin/backups` | admin | List native backups or create one. |
+| GET | `/instances/{id}/admin/backups/{key}/download` | admin | Download a native backup. |
+| DELETE | `/instances/{id}/admin/backups/{key}?confirm=true` | admin | Delete a native backup. |
+| POST | `/instances/{id}/admin/backups/{key}/restore?confirm=true` | admin | Restore a native backup. |
+| GET/POST | `/instances/{id}/admin/superusers` | admin | List or create superusers. |
+| PATCH/DELETE | `/instances/{id}/admin/superusers/{recordId}` | admin | Update or delete a superuser. The last superuser is protected. |
+| GET | `/instances/{id}/admin/auth-collections` | admin | List non-system auth collections. |
+| GET/POST | `/instances/{id}/admin/auth-collections/{collectionId}/users` | admin | List or create auth users. |
+| PATCH/DELETE | `/instances/{id}/admin/auth-collections/{collectionId}/users/{recordId}` | admin | Update or delete an auth user. |
 | POST | `/instances/{id}/smtp/apply` | admin | Apply SMTP profile via PocketBase settings API. |
 | POST | `/instances/{id}/storage/apply` | admin | Apply S3 profile via PocketBase settings API. |
 | GET | `/instances/{id}/logs` | viewer | systemd journal lines. |

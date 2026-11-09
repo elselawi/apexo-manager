@@ -102,6 +102,43 @@ export interface Domain {
   updatedAt: string;
 }
 
+export interface AdminSettings {
+  meta: { appName: string; appURL: string; senderName: string; senderAddress: string; hideControls: boolean };
+  smtp: { enabled: boolean; host: string; port: number; username: string; password?: string; authMethod: string; tls: boolean; localName: string };
+  s3: { enabled: boolean; bucket: string; region: string; endpoint: string; accessKey: string; secret?: string; forcePathStyle: boolean };
+  backups: {
+    cron: string;
+    cronMaxKeep: number;
+    s3: { enabled: boolean; bucket: string; region: string; endpoint: string; accessKey: string; secret?: string; forcePathStyle: boolean };
+  };
+  rateLimits: { enabled: boolean; rules: { label: string; audience: string; duration: number; maxRequests: number }[] };
+  trustedProxy: { headers: string[]; useLeftmostIP: boolean };
+  logs: { maxDays: number; minLevel: number; logIP: boolean; logAuthId: boolean };
+  batch: { enabled: boolean; maxRequests: number; timeout: number; maxBodySize: number };
+}
+
+export interface NativeBackup {
+  key: string;
+  size: number;
+  modified: string;
+}
+
+export interface AdminSuperuser {
+  id: string;
+  email: string;
+  verified: boolean;
+  created: string;
+  updated: string;
+}
+
+export interface AuthCollection {
+  id: string;
+  name: string;
+  type: string;
+}
+
+export type AuthRecord = Record<string, unknown> & { id: string };
+
 export interface ApplicationConfig {
   smtp: {
     enabled: boolean;

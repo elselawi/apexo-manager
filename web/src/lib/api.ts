@@ -1,7 +1,12 @@
 import type {
   Admin,
+  AdminSettings,
+  AdminSuperuser,
   ApplicationConfig,
   AuditEntry,
+  AuthCollection,
+  AuthRecord,
+  NativeBackup,
   AuthStatus,
   Backup,
   CaddyConfigView,
@@ -206,6 +211,70 @@ export const api = {
 
   instanceApplication(id: string): Promise<ApplicationConfig> {
     return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/application`);
+  },
+
+  adminSettings(id: string): Promise<{ settings: AdminSettings }> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/admin/settings`);
+  },
+
+  updateAdminSettings(id: string, settings: AdminSettings): Promise<{ settings: AdminSettings }> {
+    return request("PATCH", `/api/v1/instances/${encodeURIComponent(id)}/admin/settings`, settings);
+  },
+
+  adminBackups(id: string): Promise<{ items: NativeBackup[] }> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/admin/backups`);
+  },
+
+  createAdminBackup(id: string): Promise<{ backup: NativeBackup }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/admin/backups`, {});
+  },
+
+  deleteAdminBackup(id: string, key: string): Promise<{ status: string }> {
+    return request("DELETE", `/api/v1/instances/${encodeURIComponent(id)}/admin/backups/${encodeURIComponent(key)}?confirm=true`);
+  },
+
+  restoreAdminBackup(id: string, key: string): Promise<{ status: string }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/admin/backups/${encodeURIComponent(key)}/restore?confirm=true`, {});
+  },
+
+  adminBackupDownloadUrl(id: string, key: string): string {
+    return `/api/v1/instances/${encodeURIComponent(id)}/admin/backups/${encodeURIComponent(key)}/download`;
+  },
+
+  adminSuperusers(id: string): Promise<{ items: AdminSuperuser[] }> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/admin/superusers`);
+  },
+
+  createAdminSuperuser(id: string, email: string, password: string): Promise<{ status: string }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/admin/superusers`, { email, password });
+  },
+
+  updateAdminSuperuser(id: string, recordId: string, email: string, password: string): Promise<{ status: string }> {
+    return request("PATCH", `/api/v1/instances/${encodeURIComponent(id)}/admin/superusers/${encodeURIComponent(recordId)}`, { email, password });
+  },
+
+  deleteAdminSuperuser(id: string, recordId: string, confirmation: string): Promise<{ status: string }> {
+    return request("DELETE", `/api/v1/instances/${encodeURIComponent(id)}/admin/superusers/${encodeURIComponent(recordId)}`, { confirmation });
+  },
+
+  authCollections(id: string): Promise<{ items: AuthCollection[] }> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/admin/auth-collections`);
+  },
+
+  authUsers(id: string, collectionId: string): Promise<{ items: AuthRecord[] }> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/admin/auth-collections/${encodeURIComponent(collectionId)}/users`);
+  },
+
+  createAuthUser(id: string, collectionId: string, data: Record<string, unknown>): Promise<{ record: AuthRecord }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/admin/auth-collections/${encodeURIComponent(collectionId)}/users`, data);
+  },
+
+  updateAuthUser(id: string, collectionId: string, recordId: string, data: Record<string, unknown>): Promise<{ record: AuthRecord }> {
+    return request("PATCH", `/api/v1/instances/${encodeURIComponent(id)}/admin/auth-collections/${encodeURIComponent(collectionId)}/users/${encodeURIComponent(recordId)}`, data);
+  },
+
+  deleteAuthUser(id: string, collectionId: string, recordId: string, confirmation: string): Promise<{ status: string }> {
+    return request("DELETE", `/api/v1/instances/${encodeURIComponent(id)}/admin/auth-collections/${encodeURIComponent(collectionId)}/users/${encodeURIComponent(recordId)}`, { confirmation });
   },
 
   setCredentials(id: string, email: string, password: string): Promise<{ status: string; email: string }> {

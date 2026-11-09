@@ -70,8 +70,9 @@ import {
 } from "../components/ui";
 import { JobProgress } from "../components/JobProgress";
 import { DomainAttachModal } from "../components/DomainAttachModal";
+import { InstanceAdmin } from "./InstanceAdmin";
 
-type TabId = "overview" | "application" | "domains" | "backups" | "logs" | "danger";
+type TabId = "overview" | "application" | "admin" | "domains" | "backups" | "logs" | "danger";
 
 export function InstanceDetailPage() {
   const { id = "" } = useParams();
@@ -169,6 +170,7 @@ export function InstanceDetailPage() {
   const tabs: { id: TabId; label: string; count?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "application", label: "Application settings" },
+    ...(canWrite ? [{ id: "admin" as TabId, label: "PocketBase admin" }] : []),
     { id: "domains", label: "Domains", count: domains.length },
     { id: "backups", label: "Backups", count: backups.length },
     { id: "logs", label: "Logs" },
@@ -248,6 +250,7 @@ export function InstanceDetailPage() {
           onCredentials={() => setCredentialsOpen(true)}
         />
       ) : null}
+      {tab === "admin" ? <InstanceAdmin data={data} onRefresh={refresh} /> : null}
       {tab === "domains" ? (
         <Card
           title="Domains"

@@ -69,6 +69,20 @@ A managed superuser is deliberately a long-lived, manager-owned credential. This
 
 Do not manually rotate or delete a managed account unless you intend to stop managing it.
 
+## PocketBase administration surface
+
+The PocketBase admin tab is intentionally allowlisted:
+
+- Settings are typed; there is no arbitrary settings JSON proxy.
+- Application collection records and collection schema are not exposed.
+- Auth records are limited to standard identity fields.
+- Superuser mutations use the official CLI because PocketBase 0.23 does not expose record mutation routes for `_superusers`; the service briefly stops.
+- The last superuser cannot be deleted.
+- Native backup restore/delete and settings changes require explicit confirmation.
+- Every write is audited without secret values.
+- Editing a managed superuser is warned but allowed; the watchdog may rebuild it.
+- SMTP/S3 password and secret fields are write-only; blank values preserve the existing secret.
+
 ## Manager self-update
 
 - Releases are discovered from GitHub over HTTPS; the repository is fixed in the build (`elselawi/apexo-manager`), not supplied by the request.

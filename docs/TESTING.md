@@ -98,6 +98,16 @@ Application discovery was exercised against the local `clinic-b` instance with i
 - The Application tab and Backups tab both show native PocketBase backups separately from pbmanager-created backups.
 - The endpoint returns no SMTP password or S3 secret.
 
+PocketBase admin integration:
+
+- `GET /admin/settings` returned the live typed settings model: meta, SMTP, S3, backups (including backup S3), rate limits, trusted proxy, logs, and batch.
+- A settings PATCH preserved an existing SMTP password when the password field was blank, proving that the write-only secret behavior works.
+- Native backup create/list/download/delete was exercised end to end; the downloaded artifact was 302,608 bytes and matched the listed backup.
+- Superuser create, update (including email change), and delete worked through the official CLI. The email change creates a new PocketBase record; the UI reloads and subsequent operations use the new record ID.
+- Auth-user create, update, and delete were exercised against the default `users` auth collection.
+- Chrome loaded the PocketBase admin tab with settings, native backups, superusers, and auth users sections and the save-confirmation dialog.
+- Final local health after the admin build: `{"service":"pbmanager","status":"ok","version":"1.0.7"}`.
+
 Real Caddy validation test:
 
 ```bash
