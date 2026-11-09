@@ -62,6 +62,16 @@ A safe end-to-end `self-upgrade` exercise used a disposable `pbmanager-selftest.
 
 The test service and files were removed afterward.
 
+A real GitHub end-to-end update was then exercised:
+
+- `.github/workflows/release.yml` published `v1.0.2` and `v1.0.3` with amd64/arm64 binaries and `checksums.txt`.
+- A manager reporting `1.0.2` checked the live GitHub API and received the `1.0.3` asset name, size, release notes, and SHA-256 `6cf27e200a5698263cc195849ea96cd1fb2c1c50f0ef13906c348b0827821b6d`.
+- `POST /api/v1/system/update` queued a `manager.update` job; the asset was downloaded and verified; the detached updater installed 1.0.3, restarted the service, and wrote `last-result.json` with `status: success`.
+- The job was recovered on the new 1.0.3 process. Its pre-check recognized the running version was already current and completed successfully instead of scheduling a second installer.
+- The 1.0.3 source adds `--no-block` and a pre-check specifically to prevent the duplicate-installer race observed during the 1.0.2 test.
+
+Final health: `{"service":"pbmanager","status":"ok","version":"1.0.3"}`.
+
 Real Caddy validation test:
 
 ```bash
