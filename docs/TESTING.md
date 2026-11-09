@@ -49,6 +49,7 @@ Coverage highlights:
 | Monitor | Host info sanity, disk free bounds. |
 | PocketBase release | Pinned legacy checksums for 0.23.6. |
 | Manager update | GitHub release parsing, 404/no-release handling, asset selection, digest/checksums verification, download hash, version comparison, detached `systemd-run` argument construction. |
+| Managed credentials | Auth-session record IDs, superuser list, recovery journal cleanup, delete/recreate repair, watchdog-triggered repair, active-job guard. |
 | Discovery response | API always serializes `items` and `warnings` as arrays; UI handles null defensively. |
 
 A safe end-to-end `self-upgrade` exercise used a disposable `pbmanager-selftest.service` with a tiny health endpoint and a fake staged binary:
@@ -72,16 +73,21 @@ A real GitHub end-to-end update was then exercised:
 
 Final health: `{"service":"pbmanager","status":"ok","version":"1.0.3"}`.
 
-A second real dashboard update was then run from official **1.0.3** to **1.0.4**. Unlike the earlier 1.0.2 test, the job completed on attempt 1:
+## Managed superuser integration
 
-- check succeeded
-- download succeeded with SHA-256 `2c125a582e78ebd3a19bf08cafccf42bbbc687cfafd4d5372cc85f53a936d415`
-- schedule succeeded
-- the job was marked `succeeded` before the delayed restart
-- the updater restarted the service and wrote `last-result.json` with `status: success, version: 1.0.4`
-- final health: `{"service":"pbmanager","status":"ok","version":"1.0.4"}`
+The schema migration to version 2 added the managed-credential fields. On a local instance:
 
-The 1.0.4 release includes the ephemeral-superuser implementation described above.
+- `clinic-b` had no linked credential. `POST /instances/{id}/managed-credentials` created `pbmanager-318290d8038d@managed.local`, marked it managed, and left the service active.
+- The managed account password was changed externally with `superuser update`. `POST .../managed-credentials/repair` completed as `status: repaired`.
+- The old PocketBase record ID disappeared and exactly one managed account remained; the original `admin@clinic-b.pbmanager.local` account was untouched.
+- The managed account was deleted externally. The repair job recreated it successfully.
+- The failure counter was set to 1 and the password changed externally. After the watchdog startup delay, it authenticated, incremented the failure to 2, queued `managed.repair` with `createdBy: system:managed-watchdog`, and the job completed. The final state was `failures=0`, `status=linked`, and the instance healthy.
+- Chrome loaded the instance page with the managed badge, email, **Repair now**, and **Stop managing** controls. The only console 401 was the expected pre-login auth probe.
+- A delete/start hit systemd's start-limit during rapid test cycles. `Start` now calls `reset-failed` for deliberate managed start operations.
+
+The PocketBase list API is available at `/api/collections/_superusers/records`; record-level update/delete is not available on this build. Email-rename cleanup therefore resolves the old record through the list API and removes the current email through the official CLI.
+
+After the final 1.0.5 build, local health was `{"service":"pbmanager","status":"ok","version":"1.0.5"}` and the managed UI loaded with the expected controls.
 
 Real Caddy validation test:
 
@@ -334,24 +340,6 @@ Observed config after rerun:
 
 - Discovery modal executed in Chrome against the live manager: three tracked candidates, no console errors, no fatal screen. The earlier crash was caused by a nil `warnings` slice serializing as `null`; the backend now returns `[]` and the UI defaults both arrays.
 - Settings page manager-update card executed in Chrome against the live manager: current version, GitHub check, and "No releases" state render without errors.
-
-## Ephemeral superuser mode
-
-`clinic-b` was unlinked through `DELETE /instances/{id}/credentials`. Its PocketBase `_superusers` table initially contained only `admin@clinic-b.pbmanager.local`.
-
-A manual `backup create clinic-b` then:
-
-- created a temporary `ephemeral-*@pbmanager.local` superuser through the official CLI,
-- completed a native PocketBase backup,
-- deleted the temporary superuser,
-- left only `admin@clinic-b.pbmanager.local` in `_superusers`,
-- left `/var/lib/pbmanager/ephemeral` empty,
-- restored `clinic-b` to active/healthy,
-- completed in about 3.1 seconds.
-
-The same test was run with `clinic-b` initially stopped. The manager started it for the operation, created/used/deleted the temporary superuser, and **left it stopped afterward**, restoring the original state. It was then started manually for the demo.
-
-A unit test covers journal recovery: an orphan journal causes `Recover` to stop the service, run `superuser delete`, restart the prior running state, and remove the journal. SMTP/S3 apply uses the same `pbauth.With` lifecycle, though a live SMTP/S3 apply was not available.
 
 ## What was not tested against real providers
 

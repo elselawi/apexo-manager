@@ -419,14 +419,17 @@ func (s *Service) createLinkedSuperuser(ctx context.Context, inst *store.Instanc
 		return err
 	}
 	client := pocketbase.New(inst.Port)
-	if _, err := client.TestAuth(ctx, email, password); err != nil {
+	session, err := client.AuthSession(ctx, email, password)
+	if err != nil {
 		return fmt.Errorf("generated superuser could not authenticate: %w", err)
 	}
-	if err := s.Store.SetPBAuthState(ctx, inst.ID, email, sealed, "linked", store.Now(), ""); err != nil {
+	if err := s.Store.SetManagedPBAuth(ctx, inst.ID, email, sealed, session.RecordID, store.Now()); err != nil {
 		return err
 	}
 	inst.PBSuperuserEmail = email
 	inst.PBSuperuserSecret = sealed
+	inst.PBSuperuserManaged = true
+	inst.PBSuperuserRecordID = session.RecordID
 	inst.PBAuthStatus = "linked"
 	inst.PBAuthError = ""
 	return nil

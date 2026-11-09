@@ -24,13 +24,13 @@ Requirements:
 - the repository has a published GitHub release,
 - the release includes `pbmanager_<version>_linux_amd64` or `_arm64` and either asset digests or `checksums.txt`,
 - the server can reach `api.github.com` and the GitHub release asset host,
-- the installation was upgraded at least once to a self-updating build (1.0.3+). Older builds must first use `deploy-remote.sh` or the installer.
+- the installation was upgraded at least once to a build containing the self-update endpoint (1.0.3+). Older builds must first use `deploy-remote.sh` or the installer.
 
 Publishing a release is handled by `.github/workflows/release.yml`:
 
 ```bash
-git tag v1.0.4
-git push origin v1.0.4
+git tag v1.0.5
+git push origin v1.0.5
 ```
 
 The workflow builds the embedded frontend, runs the tests, cross-compiles Linux amd64/arm64, writes `checksums.txt`, and creates the GitHub release.

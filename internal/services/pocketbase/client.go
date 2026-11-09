@@ -6,6 +6,7 @@ package pocketbase
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,10 +137,28 @@ func (c *Client) httpStatus(ctx context.Context, target string) (int, []byte, er
 	return resp.StatusCode, raw, nil
 }
 
+// AuthSession is a superuser login result used for managed credentials.
+type AuthSession struct {
+	Token    string
+	RecordID string
+}
+
 // Auth authenticates a superuser and returns the access token.
 func (c *Client) Auth(ctx context.Context, email, password string) (string, error) {
+	session, err := c.AuthSession(ctx, email, password)
+	if err != nil {
+		return "", err
+	}
+	return session.Token, nil
+}
+
+// AuthSession authenticates a superuser and returns the token and record ID.
+func (c *Client) AuthSession(ctx context.Context, email, password string) (AuthSession, error) {
 	var out struct {
-		Token string `json:"token"`
+		Token  string `json:"token"`
+		Record struct {
+			ID string `json:"id"`
+		} `json:"record"`
 	}
 	err := c.do(ctx, http.MethodPost, "/api/collections/_superusers/auth-with-password", "", map[string]string{
 		"identity": email,
@@ -148,22 +167,66 @@ func (c *Client) Auth(ctx context.Context, email, password string) (string, erro
 	if err != nil {
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && (apiErr.Status == http.StatusBadRequest || apiErr.Status == http.StatusUnauthorized || apiErr.Status == http.StatusForbidden) {
-			return "", ErrUnauthorized
+			return AuthSession{}, ErrUnauthorized
 		}
 		if errors.Is(err, ErrUnauthorized) {
-			return "", ErrUnauthorized
+			return AuthSession{}, ErrUnauthorized
 		}
-		return "", err
+		return AuthSession{}, err
 	}
 	if out.Token == "" {
-		return "", ErrUnauthorized
+		return AuthSession{}, ErrUnauthorized
 	}
-	return out.Token, nil
+	recordID := out.Record.ID
+	if recordID == "" {
+		recordID = jwtRecordID(out.Token)
+	}
+	return AuthSession{Token: out.Token, RecordID: recordID}, nil
 }
 
 // TestAuth verifies credentials and returns the token.
 func (c *Client) TestAuth(ctx context.Context, email, password string) (string, error) {
 	return c.Auth(ctx, email, password)
+}
+
+// Superuser is the documented superuser record shape needed for identity
+// cleanup after an email rename.
+type Superuser struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+// ListSuperusers lists superuser records using the documented collection API.
+func (c *Client) ListSuperusers(ctx context.Context, token string) ([]Superuser, error) {
+	var out struct {
+		Items []Superuser `json:"items"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/collections/_superusers/records?perPage=200&skipTotal=1", token, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Items, nil
+}
+
+func jwtRecordID(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		ID  string `json:"id"`
+		Sub string `json:"sub"`
+	}
+	if json.Unmarshal(raw, &claims) != nil {
+		return ""
+	}
+	if claims.ID != "" {
+		return claims.ID
+	}
+	return claims.Sub
 }
 
 // GetSettings fetches documented application settings.

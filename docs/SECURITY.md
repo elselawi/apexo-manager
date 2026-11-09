@@ -53,25 +53,21 @@ This manager runs as root and controls PocketBase processes, systemd units, Cadd
 - Every encrypted value is bound to an AAD purpose, e.g. `smtp:<id>`, `storage:<id>`, `cloudflare:<id>`, `pb_superuser:<instanceID>`. A ciphertext moved to another row fails to decrypt.
 - Secrets are never returned by the API, never written to audit detail, and redacted from logs.
 - PocketBase superuser passwords created during provisioning are generated with `crypto/rand`, passed to the official CLI, and stored encrypted. They are not printed.
+- Managed superuser passwords are rotated on every repair. The old account is deleted first; the new password is stored only after successful authentication.
 - The secret key is required to restore profile credentials and linked PocketBase auth. Back it up separately.
 
-## Ephemeral PocketBase superusers
+## Managed superuser ownership
 
-When an instance has no linked PocketBase superuser, manual application-level operations can use a temporary account:
+A managed superuser is deliberately a long-lived, manager-owned credential. This is powerful and should be an explicit policy choice:
 
-- the account email/password are generated with `crypto/rand`,
-- the service is stopped before the official `superuser upsert` and before `superuser delete`,
-- the password is passed only to the local PocketBase CLI and is never stored, returned, or audited,
-- a journal under `<dataDir>/ephemeral/` makes cleanup durable,
-- cleanup restores the prior running/stopped state,
-- startup recovery deletes orphaned temporary accounts.
+- enabling it means an operator password change or deletion is treated as drift and undone;
+- **Stop managing** first deletes the account and clears the encrypted credential;
+- every create/repair/delete is written to the audit log;
+- the watchdog only acts after health is OK and two consecutive auth failures;
+- a service outage, 429, or 5xx is not treated as credential drift;
+- the manager uses only the official CLI for account mutation and the documented auth/list APIs for verification.
 
-Tradeoffs:
-
-- the app briefly stops and restarts for each manual operation,
-- the password is briefly visible in the local process argument list (a PocketBase CLI limitation),
-- scheduled native backups do not use this mode; they use SQLite snapshots when unlinked,
-- if cleanup fails, the operation fails and the journal is retained for recovery.
+Do not manually rotate or delete a managed account unless you intend to stop managing it.
 
 ## Manager self-update
 
@@ -142,7 +138,6 @@ Audited events include:
 - Cloudflare account and DNS changes
 - SMTP/storage profile changes and tests
 - backup create/verify/restore/delete
-- ephemeral superuser created/deleted
 - settings updates
 - CLI recovery actions and DB restore
 

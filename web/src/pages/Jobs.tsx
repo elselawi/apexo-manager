@@ -42,6 +42,9 @@ const jobTypes = [
   "backup.restore",
   "caddy.ensure-import",
   "manager.update",
+  "managed.create",
+  "managed.repair",
+  "managed.delete",
 ];
 
 export function JobsPage() {

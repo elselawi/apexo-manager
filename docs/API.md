@@ -102,8 +102,11 @@ Missing/incorrect CSRF returns `403`.
 | GET | `/instances/{id}/logs` | viewer | systemd journal lines. |
 | GET | `/instances/{id}/metrics` | viewer | Instance metric history. |
 | PUT | `/instances/{id}/credentials` | admin | Link PocketBase superuser `{email,password}`. |
-| DELETE | `/instances/{id}/credentials` | admin | Unlink. |
+| DELETE | `/instances/{id}/credentials` | admin | Unlink a manually linked credential. Refused for managed credentials. |
 | POST | `/instances/{id}/credentials/test` | admin | Retest linked credentials. |
+| POST | `/instances/{id}/managed-credentials` | admin | Create a managed superuser, or adopt the currently linked one. Queues a job. |
+| POST | `/instances/{id}/managed-credentials/repair` | admin | Delete and recreate the managed account now. Queues a job. |
+| DELETE | `/instances/{id}/managed-credentials` | admin | Delete the managed account and stop managing it. Queues a job. |
 | GET | `/instances/{id}/backups` | viewer | Instance backup list. |
 
 ### Create payload

@@ -106,6 +106,12 @@ func (m *Manager) Start(ctx context.Context, service string) error {
 	return m.act(ctx, "start", service)
 }
 
+// ResetFailed clears a unit's failed/start-limit state before a deliberate
+// restart after a controlled stop.
+func (m *Manager) ResetFailed(ctx context.Context, service string) error {
+	return m.act(ctx, "reset-failed", service)
+}
+
 // Stop stops a unit.
 func (m *Manager) Stop(ctx context.Context, service string) error {
 	return m.act(ctx, "stop", service)

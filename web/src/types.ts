@@ -50,6 +50,10 @@ export interface Instance {
   storageApplyStatus: string;
   storageAppliedAt?: string;
   pbSuperuserEmail?: string;
+  pbSuperuserManaged: boolean;
+  pbLastVerifiedAt?: string;
+  pbLastRepairedAt?: string;
+  pbReconcileError?: string;
   pbAuthStatus: string;
   pbAuthCheckedAt?: string;
   pbAuthError?: string;

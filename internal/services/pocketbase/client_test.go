@@ -26,7 +26,13 @@ func TestAuthSettingsAndHealth(t *testing.T) {
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": "invalid"})
 				return
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"token": "jwt-token"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"token": "jwt-token", "record": map[string]any{"id": "rec-1"}})
+		case "/api/collections/_superusers/records":
+			if r.Header.Get("Authorization") != "jwt-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{{"id": "rec-1", "email": "admin@example.com"}}})
 		case "/api/settings":
 			if r.Header.Get("Authorization") != "jwt-token" {
 				w.WriteHeader(http.StatusUnauthorized)
@@ -56,6 +62,14 @@ func TestAuthSettingsAndHealth(t *testing.T) {
 	}
 	if _, err := client.Auth(context.Background(), "admin@example.com", "wrong"); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("wrong auth: %v", err)
+	}
+	session, err := client.AuthSession(context.Background(), "admin@example.com", "test-password")
+	if err != nil || session.Token != "jwt-token" || session.RecordID != "rec-1" {
+		t.Fatalf("auth session: %#v %v", session, err)
+	}
+	users, err := client.ListSuperusers(context.Background(), session.Token)
+	if err != nil || len(users) != 1 || users[0].ID != "rec-1" {
+		t.Fatalf("list superusers: %#v %v", users, err)
 	}
 	settings, err := client.GetSettings(context.Background(), token)
 	if err != nil || settings["smtp"] == nil {

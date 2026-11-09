@@ -86,7 +86,7 @@ The durable job contains ordered steps:
 5. `install`: atomically install the binary, preserving `.previous`.
 6. `systemd`: render a managed unit, validate with `systemd-analyze verify`, install, enable, reload.
 7. `start`: start and wait for `/api/health`.
-8. `superuser`: stop briefly, run PocketBase's supported `superuser upsert` as the instance user, start, authenticate, and store the generated password encrypted.
+8. `superuser`: stop briefly, run PocketBase's supported `superuser upsert` as the instance user, start, authenticate, and store the generated password encrypted as a managed credential.
 9. `caddy` (optional): create a managed snippet and reload.
 10. `dns` (optional): create a manager-owned A record.
 11. `verify` (optional): wait for health, DNS propagation, HTTPS and certificate.
@@ -94,14 +94,21 @@ The durable job contains ordered steps:
 
 Each step is checkpointed. A retry skips completed steps. A crash requeues the running job and resets the running step to pending. Provisioning refuses to overwrite unmanaged directories, unit files, or files without the manager marker.
 
-## PocketBase application credentials
+## Managed PocketBase superusers
 
-Application-level operations need a PocketBase superuser. Two modes are supported:
+A provisioned instance gets a dedicated manager-owned superuser. Imported instances can link an existing account or create a managed one from the instance page.
 
-- **Linked**: a dedicated superuser is stored encrypted. This is used for recurring native backups and fast SMTP/S3 operations without stopping the app.
-- **Ephemeral**: when no linked credential exists, the manager creates a random temporary superuser through PocketBase's official CLI for the duration of one manual operation, authenticates, performs the work, then removes it. The service is briefly stopped for creation and deletion.
+The manager keeps the account durable and encrypted, and a watchdog verifies it every two minutes for running instances:
 
-An ephemeral operation writes a journal under `<dataDir>/ephemeral/` before creating the account. Startup recovery removes orphaned accounts if the manager crashes mid-operation. Scheduled native backups deliberately do **not** use ephemeral mode because a schedule should not introduce downtime; unlinked scheduled backups use the safe SQLite snapshot instead.
+1. Check `/api/health`; an unhealthy service is not treated as credential drift.
+2. Authenticate with the stored account.
+3. On success, record the record ID and last-verified time.
+4. On two consecutive auth failures, queue a serialized repair job.
+5. The repair deletes the managed email, creates a new random password through `superuser upsert`, starts the service, authenticates, and stores the new encrypted password.
+6. If the old record ID still exists under a renamed email, the manager resolves its current email through the authenticated superuser list and removes it through the official CLI.
+7. A journal makes interrupted creates/repairs recoverable at startup.
+
+This is intentionally a manager-owned account. An operator should not manually rotate or delete it unless they first use **Stop managing**. A manually linked credential, by contrast, is never auto-healed.
 
 ## Self-update
 

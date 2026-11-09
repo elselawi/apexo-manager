@@ -123,6 +123,9 @@ export function jobTypeLabel(type: string): string {
     "backup.restore": "Restore backup",
     "caddy.ensure-import": "Install Caddy import",
     "manager.update": "Update pbmanager",
+    "managed.create": "Create managed superuser",
+    "managed.repair": "Repair managed superuser",
+    "managed.delete": "Remove managed superuser",
   };
   return map[type] ?? titleCase(type);
 }

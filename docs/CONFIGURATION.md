@@ -111,7 +111,9 @@ Each instance stores:
 | `caddyMode` | `unmanaged` or `managed`. |
 | `backupEnabled`, `backupCron`, `backupRetention`, `nextBackupAt` | Schedule. |
 | `cloudflareAccountId`, `smtpProfileId`, `storageProfileId` | Profile assignments. |
-| `pbSuperuserEmail` / encrypted secret / status | Optional application linkage. When unlinked, manual app-level operations use a short-lived superuser; scheduled native backups fall back to SQLite snapshots. |
+| `pbSuperuserEmail` / encrypted secret / status | Optional application linkage. |
+| `pbSuperuserManaged` | True when the manager owns and auto-heals the account. |
+| `pbLastVerifiedAt`, `pbLastRepairedAt`, `pbReconcileError` | Managed-credential watchdog state. |
 
 Imported instances default to `managed: false`, `caddyMode: unmanaged`, backups disabled but with a valid cron and retention so a schedule can be enabled.
 

@@ -237,7 +237,7 @@ export function InstanceDetailPage() {
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
       {tab === "overview" ? (
-        <OverviewTab data={data} onSchedule={() => setScheduleOpen(true)} onRunAction={runAction} />
+        <OverviewTab data={data} canWrite={canWrite} onJob={(job) => setJobId(job.id)} onSchedule={() => setScheduleOpen(true)} onRunAction={runAction} />
       ) : null}
       {tab === "application" ? (
         <ApplicationTab
@@ -370,14 +370,39 @@ export function InstanceDetailPage() {
 
 function OverviewTab({
   data,
+  canWrite,
+  onJob,
   onSchedule,
   onRunAction,
 }: {
   data: import("../types").InstanceDetail;
+  canWrite: boolean;
+  onJob: (job: Job) => void;
   onSchedule: () => void;
   onRunAction: (action: "start" | "stop" | "restart" | "sync-caddy" | "apply-smtp" | "apply-storage") => Promise<void>;
 }) {
   const { instance, currentMetrics, backups, domains, jobs } = data;
+  const toast = useToast();
+  const [managedBusy, setManagedBusy] = useState<string | null>(null);
+  const [confirmStopManaging, setConfirmStopManaging] = useState(false);
+
+  async function manage(action: "create" | "repair" | "delete") {
+    setManagedBusy(action);
+    try {
+      const result = action === "create"
+        ? await api.createManagedCredentials(instance.id)
+        : action === "repair"
+          ? await api.repairManagedCredentials(instance.id)
+          : await api.deleteManagedCredentials(instance.id);
+      onJob(result.job);
+      toast.success(action === "delete" ? "Removing managed superuser" : "Managed credential job queued");
+      setConfirmStopManaging(false);
+    } catch (err) {
+      toast.error("Could not queue managed credential operation", errorMessage(err));
+    } finally {
+      setManagedBusy(null);
+    }
+  }
   return (
     <div className="detail-grid">
       <div className="detail-main">
@@ -448,13 +473,40 @@ function OverviewTab({
         <Card title="PocketBase API" subtitle="Application-level management">
           <div className="connection-state">
             <KeyRound size={20} />
-            <div><StatusBadge status={instance.pbAuthStatus} /><span>{instance.pbSuperuserEmail || "No superuser linked"}</span></div>
+            <div>
+              <div className="button-row">
+                <StatusBadge status={instance.pbAuthStatus} />
+                {instance.pbSuperuserManaged ? <Badge tone="success">managed</Badge> : null}
+              </div>
+              <span>{instance.pbSuperuserEmail || "No superuser linked"}</span>
+            </div>
           </div>
           <p className="muted small">
-            Infrastructure operations work without PocketBase authentication. Linking a dedicated superuser enables
-            recurring native backups and faster settings operations. Unlinked instances use a short-lived superuser for
-            manual application-level operations.
+            {instance.pbSuperuserManaged
+              ? "This account is owned by the manager. The watchdog verifies it and reconstructs it after deletion or a password change. The instance briefly stops during a repair."
+              : "Linking an existing superuser adopts it; otherwise the manager can create a dedicated managed account. Managed credentials enable native backups and SMTP/S3 APIs without a manual linking step."}
           </p>
+          {instance.pbSuperuserManaged ? (
+            <div className="muted small">
+              Last verified {instance.pbLastVerifiedAt ? formatRelative(instance.pbLastVerifiedAt) : "never"}
+              {instance.pbLastRepairedAt ? ` · last repaired ${formatRelative(instance.pbLastRepairedAt)}` : ""}
+            </div>
+          ) : null}
+          {instance.pbReconcileError ? <div className="form-error">{instance.pbReconcileError}</div> : null}
+          {canWrite ? (
+            <div className="button-row">
+              {instance.pbSuperuserManaged ? (
+                <>
+                  <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={() => void manage("repair")} loading={managedBusy === "repair"}>Repair now</Button>
+                  <Button size="sm" variant="danger" icon={<Trash2 size={14} />} onClick={() => setConfirmStopManaging(true)}>Stop managing</Button>
+                </>
+              ) : (
+                <Button size="sm" variant="primary" icon={<ShieldAlert size={14} />} onClick={() => void manage("create")} loading={managedBusy === "create"}>
+                  {instance.pbAuthStatus === "linked" ? "Adopt as managed" : "Create managed superuser"}
+                </Button>
+              )}
+            </div>
+          ) : null}
         </Card>
         <Card title="Infrastructure actions">
           <div className="vertical-actions">
@@ -464,6 +516,17 @@ function OverviewTab({
           </div>
         </Card>
       </aside>
+      <ConfirmDialog
+        open={confirmStopManaging}
+        onClose={() => setConfirmStopManaging(false)}
+        onConfirm={() => void manage("delete")}
+        title="Stop managing PocketBase credentials"
+        message={<p>The managed superuser will be deleted from PocketBase and the manager will stop auto-healing it. The instance briefly stops.</p>}
+        confirmLabel="Stop managing"
+        requireText={instance.name}
+        danger
+        busy={managedBusy === "delete"}
+      />
     </div>
   );
 }
@@ -556,15 +619,17 @@ function ApplicationTab({
           actions={
             canWrite ? (
               <div className="button-row">
-                {instance.pbAuthStatus === "linked" ? (
+                {instance.pbSuperuserManaged ? (
+                  <Button size="sm" variant="ghost" onClick={() => void testLinked()} loading={testing}>Test</Button>
+                ) : instance.pbAuthStatus === "linked" ? (
                   <>
                     <Button size="sm" variant="ghost" onClick={() => void testLinked()} loading={testing}>Test</Button>
                     <Button size="sm" variant="ghost" icon={<Unplug size={14} />} onClick={() => void unlink()}>Unlink</Button>
+                    <Button size="sm" variant="secondary" icon={<KeyRound size={15} />} onClick={onCredentials}>Replace credentials</Button>
                   </>
-                ) : null}
-                <Button size="sm" variant="secondary" icon={<KeyRound size={15} />} onClick={onCredentials}>
-                  {instance.pbAuthStatus === "linked" ? "Replace credentials" : "Link superuser"}
-                </Button>
+                ) : (
+                  <Button size="sm" variant="secondary" icon={<KeyRound size={15} />} onClick={onCredentials}>Link superuser</Button>
+                )}
               </div>
             ) : null
           }
@@ -575,16 +640,18 @@ function ApplicationTab({
               <StatusBadge status={instance.pbAuthStatus} />
               <strong>{instance.pbSuperuserEmail || "No superuser linked"}</strong>
               <p>
-                {instance.pbAuthStatus === "linked"
-                  ? "SMTP/S3 settings, native backups, and scheduled native backups use this account through documented APIs."
-                  : "No linked credential. Manual SMTP/S3 apply and manual native backups use a short-lived superuser; scheduled backups use the safe SQLite snapshot. The instance briefly stops and restarts."}
+                {instance.pbSuperuserManaged
+                  ? "Managed by pbmanager. The watchdog verifies this account and rebuilds it after deletion or a password change."
+                  : instance.pbAuthStatus === "linked"
+                    ? "SMTP/S3 settings and native PocketBase backups use this account through documented APIs."
+                    : "Link a superuser or create a managed one. Until then, SMTP/S3 application settings and native backups are unavailable."}
               </p>
               {instance.pbAuthError ? <div className="form-error">{instance.pbAuthError}</div> : null}
             </div>
           </div>
           <Notice tone="info">
-            The manager never bypasses PocketBase authentication. Ephemeral mode uses PocketBase's official CLI to create
-            and remove a temporary superuser around one operation, with a cleanup journal.
+            The manager never bypasses PocketBase authentication and never writes to internal PocketBase tables. Use a
+            dedicated superuser for this integration.
           </Notice>
         </Card>
 

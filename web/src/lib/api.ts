@@ -215,6 +215,18 @@ export const api = {
     return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/credentials/test`, {});
   },
 
+  createManagedCredentials(id: string): Promise<{ job: Job }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/managed-credentials`, {});
+  },
+
+  repairManagedCredentials(id: string): Promise<{ job: Job }> {
+    return request("POST", `/api/v1/instances/${encodeURIComponent(id)}/managed-credentials/repair`, {});
+  },
+
+  deleteManagedCredentials(id: string): Promise<{ job: Job }> {
+    return request("DELETE", `/api/v1/instances/${encodeURIComponent(id)}/managed-credentials`);
+  },
+
   domains(params: { instanceId?: string; q?: string } = {}): Promise<{ items: Domain[]; total: number }> {
     return request("GET", `/api/v1/domains${query(params)}`);
   },

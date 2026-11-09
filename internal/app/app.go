@@ -25,8 +25,8 @@ import (
 	"github.com/apexo/pbmanager/internal/services/discovery"
 	"github.com/apexo/pbmanager/internal/services/dns"
 	"github.com/apexo/pbmanager/internal/services/instances"
+	"github.com/apexo/pbmanager/internal/services/managed"
 	"github.com/apexo/pbmanager/internal/services/monitor"
-	"github.com/apexo/pbmanager/internal/services/pbauth"
 	"github.com/apexo/pbmanager/internal/services/systemd"
 	"github.com/apexo/pbmanager/internal/services/update"
 	"github.com/apexo/pbmanager/internal/settings"
@@ -45,7 +45,7 @@ type App struct {
 	DNS       *dns.Manager
 	Backup    *backup.Manager
 	Instances *instances.Service
-	PBAuth    *pbauth.Manager
+	Managed   *managed.Manager
 	Jobs      *jobs.Engine
 	Monitor   *monitor.Service
 	Discovery *discovery.Service
@@ -90,22 +90,25 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 	caddyMgr := &caddy.Manager{Runner: runner, Config: cfgFunc, BackupDir: func() string { return settingsSvc.Get().BackupDir }, Log: log}
 	dnsMgr := &dns.Manager{Store: st, Secrets: box, Cfg: cfgFunc}
 	backupMgr := &backup.Manager{Store: st, Secrets: box, Runner: runner, Cfg: cfgFunc, Systemd: systemdMgr, Log: log}
-	pbAuth := &pbauth.Manager{Store: st, Secrets: box, Systemd: systemdMgr, Runner: runner, DataDir: cfg.DataDir, Log: log}
-	backupMgr.PBAuth = pbAuth
 	instSvc := &instances.Service{
 		Store: st, Secrets: box, Cfg: cfgFunc, Systemd: systemdMgr, Caddy: caddyMgr,
-		DNS: dnsMgr, Backup: backupMgr, Runner: runner, Log: log, PBAuth: pbAuth,
+		DNS: dnsMgr, Backup: backupMgr, Runner: runner, Log: log,
 	}
 	jobEngine := jobs.New(st, log, map[string]jobs.Handler{})
 	instSvc.Jobs = jobEngine
+	managedMgr := &managed.Manager{
+		Store: st, Secrets: box, Systemd: systemdMgr, Jobs: jobEngine,
+		Runner: runner, DataDir: cfg.DataDir, Log: log,
+	}
 	monitorSvc := &monitor.Service{Store: st, Cfg: cfgFunc, Systemd: systemdMgr, Caddy: caddyMgr, DataDir: cfg.DataDir, Log: log}
 	discoverySvc := &discovery.Service{Store: st, Cfg: cfgFunc}
 	app := &App{
 		Config: cfg, Store: st, Secrets: box, Auth: auth.NewService(st, cfg.SessionTTL()),
 		Settings: settingsSvc, Systemd: systemdMgr, Caddy: caddyMgr, DNS: dnsMgr,
 		Backup: backupMgr, Instances: instSvc, Jobs: jobEngine, Monitor: monitorSvc,
-		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log, PBAuth: pbAuth,
+		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log, Managed: managedMgr,
 	}
+	managedMgr.Register()
 	app.registerHandlers()
 	return app, nil
 }
@@ -155,9 +158,9 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.Backup.RecoverInterrupted(ctx, func(msg string) { a.Log.Info(msg) }); err != nil {
 		a.Log.Error("interrupted restore recovery failed", "error", err)
 	}
-	if a.PBAuth != nil {
-		if err := a.PBAuth.Recover(ctx); err != nil {
-			a.Log.Error("ephemeral superuser recovery failed", "error", err)
+	if a.Managed != nil {
+		if err := a.Managed.Recover(ctx); err != nil {
+			a.Log.Error("managed superuser recovery failed", "error", err)
 		}
 	}
 	recovered, err := a.Jobs.Recover(ctx)
@@ -168,11 +171,19 @@ func (a *App) Start(ctx context.Context) error {
 		a.Log.Warn("recovered interrupted jobs", "count", len(recovered), "ids", recovered)
 	}
 	a.initializeSchedules(ctx)
-	a.wg.Add(3)
+	a.wg.Add(4)
 	go func() {
 		defer a.wg.Done()
 		a.Jobs.Start(ctx)
 	}()
+	if a.Managed != nil {
+		go func() {
+			defer a.wg.Done()
+			a.Managed.Watch(ctx)
+		}()
+	} else {
+		a.wg.Done()
+	}
 	go func() {
 		defer a.wg.Done()
 		a.Monitor.Start(ctx)

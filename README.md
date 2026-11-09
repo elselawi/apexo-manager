@@ -12,6 +12,7 @@ This manager is built around a few non-negotiable rules:
 
 - **Existing PocketBase installations are never modified during discovery.** Import writes only manager inventory rows.
 - **PocketBase authentication is never bypassed.** Application-level actions use the official superuser auth API. Infrastructure actions use systemd, files, and the documented binary interface.
+- **Managed PocketBase superusers are self-healing.** Each managed instance gets a dedicated account; a health/auth watchdog detects deletion or password drift and rebuilds it through the official CLI.
 - **The Caddyfile is never regenerated.** The manager emits dedicated snippets and adds one import directive, with validation, backups, and rollback.
 - **Secrets stay encrypted at rest and out of API responses and logs.** AES-256-GCM with a root-only 0600 key.
 - **The API cannot run arbitrary shell commands.** Every privileged operation is a typed, validated action with argument-only process execution.
@@ -43,8 +44,8 @@ This manager is built around a few non-negotiable rules:
 Push a version tag to publish Linux `amd64`/`arm64` binaries and a `checksums.txt` through the included GitHub Actions workflow:
 
 ```bash
-git tag v1.0.4
-git push origin v1.0.4
+git tag v1.0.5
+git push origin v1.0.5
 ```
 
 Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. Deploy a self-updating build (1.0.3 or newer) once with `deploy-remote.sh` or the installer; after that, subsequent updates can be installed from the dashboard.
@@ -63,7 +64,6 @@ Owners can then use **Server configuration → Manager updates → Check GitHub 
 - Multiple SMTP profiles with STARTTLS/TLS/plain (loopback only) and PLAIN/LOGIN authentication.
 - Multiple S3-compatible storage profiles with signed `ListObjectsV2` validation.
 - Apply SMTP/S3 settings through PocketBase's documented `/api/settings` endpoint; no direct database modification.
-- Optional linked superuser for recurring native backups, or a short-lived superuser for one-shot manual operations when no credential is linked.
 - Scheduled backups with cron expressions (UTC), retention, and verification.
 - **Native backups** use PocketBase's official backup API for a consistent database snapshot, then bundle uploads, the systemd unit, Caddy snippets, and instance metadata into one verified archive.
 - **Fallback snapshots** use SQLite `VACUUM INTO` plus uploads and configuration when application credentials are not linked.
@@ -164,7 +164,7 @@ sudo pbmanager instances import --name clinic-a \
   --run-as pb-clinic-a
 ```
 
-Import performs no writes outside the manager database. Link a PocketBase superuser later from the instance page to enable native backups and settings application.
+Import performs no writes outside the manager database. Link a PocketBase superuser or create a managed one later from the instance page to enable native backups and settings application.
 
 ## Recovery
 

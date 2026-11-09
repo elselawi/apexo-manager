@@ -61,6 +61,12 @@ type Instance struct {
 	StorageAppliedAt    string `json:"storageAppliedAt,omitempty"`
 	PBSuperuserEmail    string `json:"pbSuperuserEmail,omitempty"`
 	PBSuperuserSecret   string `json:"-"`
+	PBSuperuserManaged  bool   `json:"pbSuperuserManaged"`
+	PBSuperuserRecordID string `json:"-"`
+	PBLastVerifiedAt    string `json:"pbLastVerifiedAt,omitempty"`
+	PBLastRepairedAt    string `json:"pbLastRepairedAt,omitempty"`
+	PBReconcileError    string `json:"pbReconcileError,omitempty"`
+	PBFailureCount      int    `json:"-"`
 	PBAuthStatus        string `json:"pbAuthStatus"`
 	PBAuthCheckedAt     string `json:"pbAuthCheckedAt,omitempty"`
 	PBAuthError         string `json:"pbAuthError,omitempty"`

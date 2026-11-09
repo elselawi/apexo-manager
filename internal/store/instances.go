@@ -13,6 +13,8 @@ const instanceColumns = `i.id, i.name, i.hostname, i.base_dir, i.binary_path, i.
 	COALESCE(i.smtp_profile_id,''), COALESCE(i.storage_profile_id,''), i.caddy_mode,
 	i.smtp_apply_status, i.smtp_applied_at, i.storage_apply_status, i.storage_applied_at,
 	i.pb_superuser_email, i.pb_superuser_secret, i.pb_auth_status, i.pb_auth_checked_at, i.pb_auth_error,
+	i.pb_superuser_managed, i.pb_superuser_record_id, i.pb_superuser_last_verified_at,
+	i.pb_superuser_last_repaired_at, i.pb_superuser_reconcile_error, i.pb_superuser_failures,
 	i.backup_enabled, i.backup_cron, i.backup_retention, i.next_backup_at, i.last_backup_at,
 	i.last_health_at, i.last_health_error, i.last_seen_at, i.created_at, i.updated_at,
 	COALESCE(sp.name,''), COALESCE(stp.name,''), COALESCE(cfa.name,''),
@@ -26,7 +28,7 @@ const instanceFrom = ` FROM instances i
 
 func scanInstance(sc interface{ Scan(...any) error }) (*Instance, error) {
 	var v Instance
-	var managed, backupEnabled int
+	var managed, backupEnabled, pbManaged int
 	err := sc.Scan(
 		&v.ID, &v.Name, &v.Hostname, &v.BaseDir, &v.BinaryPath, &v.DataDir, &v.Port,
 		&v.ServiceName, &v.ServiceFile, &v.RunAsUser, &v.PBVersion, &v.Status, &v.Health,
@@ -34,6 +36,7 @@ func scanInstance(sc interface{ Scan(...any) error }) (*Instance, error) {
 		&v.SMTPProfileID, &v.StorageProfileID, &v.CaddyMode,
 		&v.SMTPApplyStatus, &v.SMTPAppliedAt, &v.StorageApplyStatus, &v.StorageAppliedAt,
 		&v.PBSuperuserEmail, &v.PBSuperuserSecret, &v.PBAuthStatus, &v.PBAuthCheckedAt, &v.PBAuthError,
+		&pbManaged, &v.PBSuperuserRecordID, &v.PBLastVerifiedAt, &v.PBLastRepairedAt, &v.PBReconcileError, &v.PBFailureCount,
 		&backupEnabled, &v.BackupCron, &v.BackupRetention, &v.NextBackupAt, &v.LastBackupAt,
 		&v.LastHealthAt, &v.LastHealthError, &v.LastSeenAt, &v.CreatedAt, &v.UpdatedAt,
 		&v.SMTPProfileName, &v.StorageProfileName, &v.CloudflareName,
@@ -44,6 +47,7 @@ func scanInstance(sc interface{ Scan(...any) error }) (*Instance, error) {
 	}
 	v.Managed = managed != 0
 	v.BackupEnabled = backupEnabled != 0
+	v.PBSuperuserManaged = pbManaged != 0
 	return &v, nil
 }
 
@@ -180,6 +184,79 @@ func (s *Store) SetPBAuthState(ctx context.Context, id, email, secret, status, c
 	_, err := s.db.ExecContext(ctx, `UPDATE instances SET pb_superuser_email=?, pb_superuser_secret=?, pb_auth_status=?, pb_auth_checked_at=?, pb_auth_error=?, updated_at=? WHERE id=?`,
 		email, secret, status, checkedAt, errText, Now(), id)
 	return err
+}
+
+// SetPBUnmanaged clears the manager-owned flag without touching credentials.
+func (s *Store) SetPBUnmanaged(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE instances SET pb_superuser_managed=0, pb_superuser_record_id='', pb_superuser_failures=0, pb_superuser_reconcile_error='', updated_at=? WHERE id=?`, Now(), id)
+	return err
+}
+
+// SetManagedPBAuth records a manager-owned superuser.
+func (s *Store) SetManagedPBAuth(ctx context.Context, id, email, secret, recordID, checkedAt string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE instances SET
+		pb_superuser_email=?, pb_superuser_secret=?, pb_superuser_record_id=?, pb_superuser_managed=1,
+		pb_auth_status='linked', pb_auth_checked_at=?, pb_auth_error='', pb_superuser_failures=0,
+		pb_superuser_last_verified_at=?, pb_superuser_reconcile_error='', updated_at=? WHERE id=?`,
+		email, secret, recordID, checkedAt, checkedAt, Now(), id)
+	return err
+}
+
+// MarkPBAuthVerified records a successful probe.
+func (s *Store) MarkPBAuthVerified(ctx context.Context, id, recordID, checkedAt string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE instances SET
+		pb_superuser_record_id=?, pb_auth_status='linked', pb_auth_checked_at=?, pb_auth_error='',
+		pb_superuser_last_verified_at=?, pb_superuser_failures=0, pb_superuser_reconcile_error='', updated_at=?
+		WHERE id=?`, recordID, checkedAt, checkedAt, Now(), id)
+	return err
+}
+
+// MarkPBAuthFailure increments the consecutive failure counter.
+func (s *Store) MarkPBAuthFailure(ctx context.Context, id, errText string) (int, error) {
+	if _, err := s.db.ExecContext(ctx, `UPDATE instances SET
+		pb_superuser_failures=pb_superuser_failures+1, pb_auth_status='error', pb_auth_checked_at=?,
+		pb_auth_error=?, pb_superuser_reconcile_error=?, updated_at=? WHERE id=?`,
+		Now(), errText, errText, Now(), id); err != nil {
+		return 0, err
+	}
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT pb_superuser_failures FROM instances WHERE id=?`, id).Scan(&count)
+	return count, err
+}
+
+// MarkPBAuthRepaired records a successful delete/recreate repair.
+func (s *Store) MarkPBAuthRepaired(ctx context.Context, id, email, secret, recordID, repairedAt string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE instances SET
+		pb_superuser_email=?, pb_superuser_secret=?, pb_superuser_record_id=?, pb_superuser_managed=1,
+		pb_auth_status='linked', pb_auth_checked_at=?, pb_auth_error='', pb_superuser_failures=0,
+		pb_superuser_last_verified_at=?, pb_superuser_last_repaired_at=?, pb_superuser_reconcile_error='', updated_at=?
+		WHERE id=?`, email, secret, recordID, repairedAt, repairedAt, repairedAt, Now(), id)
+	return err
+}
+
+// ClearManagedPBAuth removes manager-owned credential metadata.
+func (s *Store) ClearManagedPBAuth(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE instances SET
+		pb_superuser_email='', pb_superuser_secret='', pb_superuser_record_id='', pb_superuser_managed=0,
+		pb_auth_status='unlinked', pb_auth_error='', pb_superuser_failures=0, pb_superuser_reconcile_error='',
+		pb_superuser_last_verified_at='', pb_superuser_last_repaired_at='', updated_at=? WHERE id=?`, Now(), id)
+	return err
+}
+
+// ListManagedInstances returns instances whose application credential is owned
+// by the manager.
+func (s *Store) ListManagedInstances(ctx context.Context) ([]Instance, error) {
+	all, err := s.ListInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Instance
+	for _, inst := range all {
+		if inst.PBSuperuserManaged {
+			out = append(out, inst)
+		}
+	}
+	return out, nil
 }
 
 // SetApplyState records successful SMTP/S3 application.

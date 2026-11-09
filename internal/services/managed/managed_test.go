@@ -1,4 +1,4 @@
-package pbauth
+package managed
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func (f *fakeRunner) Run(ctx context.Context, name string, args ...string) ([]by
 	return nil, nil, nil
 }
 
-func TestRecoverRemovesJournalAndRestoresState(t *testing.T) {
+func TestRecoverDeletesOrphanAndRemovesJournal(t *testing.T) {
 	dir := t.TempDir()
 	runner := &fakeRunner{running: true}
 	m := &Manager{
@@ -44,11 +44,7 @@ func TestRecoverRemovesJournalAndRestoresState(t *testing.T) {
 		Runner:  runner,
 		DataDir: dir,
 	}
-	j := journal{
-		InstanceID: "inst-1", Email: "ephemeral-test@pbmanager.local",
-		DataDir: "/tmp/pb-data", BinaryPath: "/tmp/pocketbase", RunAsUser: "pb-test",
-		ServiceName: "test", WasRunning: true, Phase: "created", CreatedAt: "2026-11-09T10:00:00Z",
-	}
+	j := journal{InstanceID: "inst-1", Email: "pbmanager-test@managed.local", ServiceName: "test", WasRunning: true, Phase: "created"}
 	if err := m.writeJournal(j); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +52,7 @@ func TestRecoverRemovesJournalAndRestoresState(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(runner.calls, "\n")
-	if !strings.Contains(joined, "superuser delete ephemeral-test@pbmanager.local") {
+	if !strings.Contains(joined, "superuser delete pbmanager-test@managed.local") {
 		t.Fatalf("delete not invoked:\n%s", joined)
 	}
 	if !strings.Contains(joined, "systemctl start test") {
@@ -67,6 +63,6 @@ func TestRecoverRemovesJournalAndRestoresState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("journal was not removed: %v", entries)
+		t.Fatalf("journal not removed: %v", entries)
 	}
 }
