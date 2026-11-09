@@ -122,6 +122,7 @@ export function jobTypeLabel(type: string): string {
     "backup.verify": "Verify backup",
     "backup.restore": "Restore backup",
     "caddy.ensure-import": "Install Caddy import",
+    "manager.update": "Update pbmanager",
   };
   return map[type] ?? titleCase(type);
 }

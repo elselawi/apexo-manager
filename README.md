@@ -36,6 +36,18 @@ This manager is built around a few non-negotiable rules:
 - Server, per-instance, job, backup, Caddy, and TLS health monitoring at a low, configurable frequency.
 - Persistent job queue with priorities, bounded retries with backoff, cancellation, checkpoints, and crash recovery.
 - Single-consumer enforcement using a root-owned `flock`; the CLI does not start a duplicate worker while the service is running.
+- One-click manager updates from GitHub releases, checksum-verified and installed by a detached systemd unit with automatic health-check rollback.
+
+### Manager releases
+
+Push a version tag to publish Linux `amd64`/`arm64` binaries and a `checksums.txt` through the included GitHub Actions workflow:
+
+```bash
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. The first transition from a version older than 1.0.2 must be done once with `deploy-remote.sh` or the installer, because older builds do not include the self-update endpoint.
 
 ### Domains, Caddy, and Cloudflare
 
@@ -82,6 +94,10 @@ This manager is built around a few non-negotiable rules:
 | Backups | Background jobs |
 | --- | --- |
 | ![Backups](docs/screenshots/backups.png) | ![Jobs](docs/screenshots/jobs.png) |
+
+| Automatic discovery |
+| --- |
+| ![Discovery](docs/screenshots/discovery.png) |
 
 ## Stack
 
@@ -219,3 +235,4 @@ The exact evidence and remaining environment limitation are in [docs/TESTING.md]
 ## License
 
 No license file is included; add one appropriate to your organization before redistribution.
+

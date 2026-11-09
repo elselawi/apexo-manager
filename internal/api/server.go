@@ -44,6 +44,9 @@ type Server struct {
 
 // New constructs the HTTP server.
 func New(a *appcore.App, log *slog.Logger, version string) *Server {
+	if a.Version == "" || a.Version == "dev" {
+		a.Version = version
+	}
 	s := &Server{App: a, Log: log, Version: version, mux: http.NewServeMux(), limiter: newIPLimiter(20, 60)}
 	s.routes()
 	return s
@@ -147,6 +150,8 @@ func (s *Server) routes() {
 	s.protected("GET /api/v1/settings", "admin", s.handleGetSettings)
 	s.protected("PUT /api/v1/settings", "owner", s.handleUpdateSettings)
 	s.protected("POST /api/v1/settings/detect-ip", "owner", s.handleDetectIP)
+	s.protected("GET /api/v1/system/update", "admin", s.handleCheckUpdate)
+	s.protected("POST /api/v1/system/update", "owner", s.handleInstallUpdate)
 
 	s.protected("GET /api/v1/admins", "owner", s.handleListAdmins)
 	s.protected("POST /api/v1/admins", "owner", s.handleCreateAdmin)

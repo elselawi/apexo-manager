@@ -48,6 +48,19 @@ Coverage highlights:
 | Settings | Defaults, strict validation, unsafe templates, no implicit data relocation, template expansion. |
 | Monitor | Host info sanity, disk free bounds. |
 | PocketBase release | Pinned legacy checksums for 0.23.6. |
+| Manager update | GitHub release parsing, 404/no-release handling, asset selection, digest/checksums verification, download hash, version comparison, detached `systemd-run` argument construction. |
+| Discovery response | API always serializes `items` and `warnings` as arrays; UI handles null defensively. |
+
+A safe end-to-end `self-upgrade` exercise used a disposable `pbmanager-selftest.service` with a tiny health endpoint and a fake staged binary:
+
+- staged hash/version verified
+- target replaced atomically
+- previous target retained as `.previous`
+- service restarted and `/healthz` polled
+- `/tmp/pb-self/data/updates/last-result.json` recorded `status: success`
+- `version: 9.9.9`
+
+The test service and files were removed afterward.
 
 Real Caddy validation test:
 
@@ -297,6 +310,9 @@ Observed config after rerun:
 ```
 
 `deploy-remote.sh` now rejects a remote invocation without `--domain`/`--public-url`, preventing the loopback-only-default mistake.
+
+- Discovery modal executed in Chrome against the live manager: three tracked candidates, no console errors, no fatal screen. The earlier crash was caused by a nil `warnings` slice serializing as `null`; the backend now returns `[]` and the UI defaults both arrays.
+- Settings page manager-update card executed in Chrome against the live manager: current version, GitHub check, and "No releases" state render without errors.
 
 ## What was not tested against real providers
 

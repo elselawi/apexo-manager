@@ -55,6 +55,18 @@ This manager runs as root and controls PocketBase processes, systemd units, Cadd
 - PocketBase superuser passwords created during provisioning are generated with `crypto/rand`, passed to the official CLI, and stored encrypted. They are not printed.
 - The secret key is required to restore profile credentials and linked PocketBase auth. Back it up separately.
 
+## Manager self-update
+
+- Releases are discovered from GitHub over HTTPS; the repository is fixed in the build (`elselawi/apexo-manager`), not supplied by the request.
+- Only non-draft, non-prerelease releases are considered.
+- The platform asset is downloaded over HTTPS (loopback HTTP is allowed only for tests), size-limited, and SHA-256 verified against the GitHub asset digest or `checksums.txt`.
+- The staged binary is executed only after its hash and version are checked.
+- Installation and restart run in a detached systemd `oneshot` unit, not through a shell in the web process.
+- The previous binary is retained as `pbmanager.previous`; a failed health check automatically restores it and restarts.
+- The update endpoint is owner-only; check-only access is admin.
+- The manager cannot downgrade automatically or install from an arbitrary URL.
+- The first installation of a self-updating build must use the signed installer/deploy path; older builds have no update endpoint.
+
 ## Privileged execution
 
 - No endpoint accepts a shell command.

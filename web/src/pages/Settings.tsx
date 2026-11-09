@@ -17,7 +17,8 @@ import { api, errorMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDocumentTitle, usePolling } from "../lib/hooks";
 import { useToast } from "../lib/toast";
-import type { ServerConfig } from "../types";
+import type { ManagerUpdate, ServerConfig } from "../types";
+import { JobProgress } from "../components/JobProgress";
 import {
   Badge,
   Button,
@@ -41,10 +42,21 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [managerUpdate, setManagerUpdate] = useState<ManagerUpdate | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [updateJobId, setUpdateJobId] = useState<string | null>(null);
 
   useEffect(() => {
     if (data && !form) setForm(data.config);
   }, [data, form]);
+
+  useEffect(() => {
+    if (admin?.role === "owner") void checkUpdate();
+    // Run once when the owner's settings page mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [admin?.role]);
 
   if (admin?.role !== "owner") {
     return (
@@ -92,6 +104,35 @@ export function SettingsPage() {
     }
   }
 
+  async function checkUpdate() {
+    setChecking(true);
+    setUpdateError(null);
+    try {
+      setManagerUpdate(await api.checkManagerUpdate());
+    } catch (err) {
+      setUpdateError(errorMessage(err));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function installUpdate() {
+    setInstalling(true);
+    setUpdateError(null);
+    try {
+      const result = await api.installManagerUpdate();
+      setManagerUpdate(result.update);
+      setUpdateJobId(result.job.id);
+      toast.success("Manager update scheduled", "The service will restart shortly. This page will reconnect automatically.");
+      window.setTimeout(() => window.location.reload(), 15000);
+    } catch (err) {
+      setUpdateError(errorMessage(err));
+      toast.error("Could not schedule update", errorMessage(err));
+    } finally {
+      setInstalling(false);
+    }
+  }
+
   return (
     <div className="page">
       <PageHeader
@@ -112,6 +153,65 @@ export function SettingsPage() {
         These are default templates and server paths. Per-instance paths stay untouched. Explicit migration is required
         before relocating anything.
       </Notice>
+
+      <Card
+        title={<span className="settings-card-title"><RefreshCw size={18} /> Manager updates</span>}
+        subtitle="Official releases are discovered from the GitHub repository and verified before installation."
+        actions={
+          <div className="button-row">
+            <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={() => void checkUpdate()} loading={checking}>
+              Check GitHub
+            </Button>
+            {managerUpdate?.available ? (
+              <Button variant="primary" icon={<RefreshCw size={15} />} onClick={() => void installUpdate()} loading={installing}>
+                Install {managerUpdate.latest}
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {updateError ? <ErrorBanner message={updateError} /> : null}
+        {!managerUpdate && !updateError ? <div className="muted">Checking the latest release…</div> : null}
+        {managerUpdate ? (
+          <div className="update-panel">
+            <div className="update-version-row">
+              <div>
+                <span className="field-label">Current version</span>
+                <strong className="update-version">{managerUpdate.current}</strong>
+              </div>
+              <div>
+                <span className="field-label">Latest release</span>
+                <strong className="update-version">{managerUpdate.latest ?? "—"}</strong>
+              </div>
+              <Badge tone={managerUpdate.latest ? (managerUpdate.available ? "warning" : "success") : "neutral"}>
+                {managerUpdate.latest ? (managerUpdate.available ? "Update available" : "Up to date") : "No releases"}
+              </Badge>
+            </div>
+            {managerUpdate.reason ? <p className="muted">{managerUpdate.reason}</p> : null}
+            {managerUpdate.notes ? <pre className="update-notes">{managerUpdate.notes}</pre> : null}
+            {managerUpdate.available ? (
+              <Notice tone="warning" title="The service will restart">
+                The signed release is downloaded and checksum-verified first. A detached systemd unit installs it, restarts
+                the manager, and rolls back if the new version fails its health check. Active jobs may be interrupted.
+              </Notice>
+            ) : null}
+            {managerUpdate.releaseUrl ? (
+              <a className="text-link" href={managerUpdate.releaseUrl} target="_blank" rel="noreferrer">
+                View release on GitHub
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+        {updateJobId ? (
+          <JobProgress
+            jobId={updateJobId}
+            onFinished={(job) => {
+              if (job.status === "succeeded") toast.success("Update staged", "The service will restart and reconnect automatically.");
+              else toast.error("Update failed", job.lastError || job.status);
+            }}
+          />
+        ) : null}
+      </Card>
 
       <div className="settings-layout">
         <div className="settings-main">

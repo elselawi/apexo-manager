@@ -337,6 +337,23 @@ export interface ServerConfig {
   requireChecksums: boolean;
 }
 
+export interface ManagerUpdate {
+  current: string;
+  latest?: string;
+  tag?: string;
+  name?: string;
+  notes?: string;
+  releaseUrl?: string;
+  publishedAt?: string;
+  available: boolean;
+  reason?: string;
+  assetName?: string;
+  assetSize?: number;
+  downloadUrl?: string;
+  sha256?: string;
+  checkedAt: string;
+}
+
 export interface SettingsView {
   config: ServerConfig;
   bootstrap: {

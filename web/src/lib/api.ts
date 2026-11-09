@@ -19,6 +19,7 @@ import type {
   ServerConfig,
   Session,
   SettingsView,
+  ManagerUpdate,
   SMTPProfile,
   StorageProfile,
   Zone,
@@ -406,6 +407,14 @@ export const api = {
 
   detectIP(): Promise<{ publicIpv4: string }> {
     return request("POST", "/api/v1/settings/detect-ip", {});
+  },
+
+  checkManagerUpdate(): Promise<ManagerUpdate> {
+    return request("GET", "/api/v1/system/update");
+  },
+
+  installManagerUpdate(): Promise<{ job: Job; update: ManagerUpdate }> {
+    return request("POST", "/api/v1/system/update", {});
   },
 
   admins(): Promise<{ items: Admin[]; total: number }> {

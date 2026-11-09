@@ -13,6 +13,7 @@ import (
 
 	"github.com/apexo/pbmanager/internal/jobs"
 	"github.com/apexo/pbmanager/internal/netutil"
+	"github.com/apexo/pbmanager/internal/services/discovery"
 	"github.com/apexo/pbmanager/internal/services/instances"
 	"github.com/apexo/pbmanager/internal/services/pocketbase"
 	"github.com/apexo/pbmanager/internal/store"
@@ -81,6 +82,12 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "discovery_failed", err.Error(), nil)
 		return
+	}
+	if found == nil {
+		found = []discovery.Found{}
+	}
+	if warnings == nil {
+		warnings = []string{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": found, "warnings": warnings})
 }

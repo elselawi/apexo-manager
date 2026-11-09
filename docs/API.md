@@ -259,6 +259,10 @@ Viewer. Returns most recent entries, including admin, CLI-root, and system actor
 | GET | `/settings` | admin |
 | PUT | `/settings` | owner |
 | POST | `/settings/detect-ip` | owner |
+| GET | `/system/update` | admin |
+| POST | `/system/update` | owner |
+
+`GET /system/update` checks `elselawi/apexo-manager` for the latest published GitHub release and returns current/latest versions, release notes, asset metadata, checksum, and availability. `POST` enqueues a checksum-verified `manager.update` job. The updater uses a detached systemd unit; the response indicates that the update was scheduled, not that the restart has completed.
 
 `PUT` body is the full `config` object returned by `GET`; partial settings updates are not accepted. The response includes `changed` fields and `warnings`. Bootstrap paths are read-only.
 

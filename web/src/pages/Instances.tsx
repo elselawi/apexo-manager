@@ -157,8 +157,8 @@ function DiscoverModal({
     setError(null);
     try {
       const result = await api.discover();
-      setItems(result.items);
-      setWarnings(result.warnings);
+      setItems(result.items ?? []);
+      setWarnings(result.warnings ?? []);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -232,7 +232,7 @@ function DiscoverModal({
                   </td>
                   <td>
                     <div className="badge-stack">
-                      {item.evidence.slice(0, 2).map((evidence) => (
+                      {(item.evidence ?? []).slice(0, 2).map((evidence) => (
                         <Badge tone="neutral" key={evidence}>
                           {evidence}
                         </Badge>

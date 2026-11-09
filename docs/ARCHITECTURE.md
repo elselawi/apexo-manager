@@ -94,6 +94,19 @@ The durable job contains ordered steps:
 
 Each step is checkpointed. A retry skips completed steps. A crash requeues the running job and resets the running step to pending. Provisioning refuses to overwrite unmanaged directories, unit files, or files without the manager marker.
 
+## Self-update
+
+The manager can update itself from official GitHub releases:
+
+1. `internal/services/update` requests the latest non-draft, non-prerelease release for `elselawi/apexo-manager`.
+2. It selects the asset for `linux/<arch>`, obtains a SHA-256 from the asset digest or `checksums.txt`, and reports release notes.
+3. A `manager.update` job downloads the asset to `<dataDir>/updates`, enforces HTTPS (loopback HTTP is allowed only for tests), and verifies the hash.
+4. `systemd-run` starts a transient `oneshot` unit running the **staged new binary** with `self-upgrade`.
+5. The detached helper verifies the staged binary’s version and hash, preserves the current binary as `.previous`, atomically installs the replacement, restarts `pbmanager`, and polls the loopback health endpoint.
+6. On failure it restores `.previous`, restarts, and writes `updates/last-result.json`.
+
+The API exposes only a typed check/install endpoint; it cannot pass an arbitrary URL or shell command. The release repository is fixed at build time and release assets are independently hash-verified.
+
 ## Job engine
 
 - Atomic claim in an immediate SQLite transaction.

@@ -1,6 +1,41 @@
 # Upgrade, Rollback, and Uninstall
 
-## Manager upgrade
+## Dashboard one-click manager update
+
+Owners can use **Server configuration → Manager updates**:
+
+1. Click **Check GitHub**. The manager reads the latest non-draft, non-prerelease release from `elselawi/apexo-manager`.
+2. Review the release notes and version.
+3. Click **Install x.y.z**.
+
+The manager:
+
+- downloads the platform asset over HTTPS,
+- verifies the SHA-256 from the GitHub asset digest or `checksums.txt`,
+- stages it under `/var/lib/pbmanager/updates` (0700),
+- starts a detached `systemd-run` unit,
+- the detached updater verifies the staged binary again, preserves `/usr/local/bin/pbmanager.previous`, atomically installs the new binary, restarts `pbmanager`, and polls `/healthz`,
+- if the new build is unhealthy, restores `.previous`, restarts, and records the failure in `/var/lib/pbmanager/updates/last-result.json`.
+
+The browser page may disconnect for a few seconds while the service restarts; it reloads automatically. The job result indicates that the update was **scheduled**; the detached updater writes the final success or rollback result to `last-result.json`.
+
+Requirements:
+
+- the repository has a published GitHub release,
+- the release includes `pbmanager_<version>_linux_amd64` or `_arm64` and either asset digests or `checksums.txt`,
+- the server can reach `api.github.com` and the GitHub release asset host,
+- the installation was upgraded at least once to a build containing the self-update endpoint (1.0.2+). Older builds must first use `deploy-remote.sh` or the installer.
+
+Publishing a release is handled by `.github/workflows/release.yml`:
+
+```bash
+git tag v1.0.2
+git push origin v1.0.2
+```
+
+The workflow builds the embedded frontend, runs the tests, cross-compiles Linux amd64/arm64, writes `checksums.txt`, and creates the GitHub release.
+
+## Manager upgrade with the script
 
 ### 1. Build the new binary
 

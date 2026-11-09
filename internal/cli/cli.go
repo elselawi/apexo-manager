@@ -57,6 +57,8 @@ func Run(args []string) int {
 	case "version", "--version":
 		fmt.Printf("pbmanager %s\n", Version)
 		return 0
+	case "self-upgrade":
+		return cmdSelfUpgrade(args[1:])
 	case "serve":
 		return cmdServe(args[1:])
 	case "status":

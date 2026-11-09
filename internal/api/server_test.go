@@ -176,6 +176,21 @@ func TestSettingsAndAudit(t *testing.T) {
 	}
 }
 
+func TestDiscoveryResponseUsesArrays(t *testing.T) {
+	h := newAPIHarness(t)
+	h.login(t, "owner")
+	resp, body := h.do(t, http.MethodGet, "/api/v1/instances/discover", nil, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("discovery status %d: %#v", resp.StatusCode, body)
+	}
+	if _, ok := body["items"].([]any); !ok {
+		t.Fatalf("items must be a JSON array, got %#v", body["items"])
+	}
+	if _, ok := body["warnings"].([]any); !ok {
+		t.Fatalf("warnings must be a JSON array, got %#v", body["warnings"])
+	}
+}
+
 func TestInvalidCredentialsAndCSRF(t *testing.T) {
 	h := newAPIHarness(t)
 	resp, _ := h.do(t, http.MethodPost, "/api/v1/auth/login", map[string]string{"username": "owner", "password": "wrong"}, nil)

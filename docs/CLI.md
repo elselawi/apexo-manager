@@ -244,6 +244,19 @@ pbmanager diagnose
 pbmanager version
 ```
 
+### `self-upgrade` (internal)
+
+The dashboard updater starts this command from a detached systemd unit:
+
+```bash
+pbmanager self-upgrade \
+  --from /var/lib/pbmanager/updates/pbmanager_1.0.2_linux_amd64 \
+  --sha256 <digest> --version 1.0.2 \
+  --target /usr/local/bin/pbmanager --service pbmanager --delay 7
+```
+
+It verifies the staged binary, retains the current binary as `.previous`, installs the new one, restarts the service, waits for the loopback health endpoint, and rolls back if the new build does not become healthy. It is root-only and normally not run manually.
+
 `diagnose` is read-only: host, kernel, systemd, Caddy, paths, permissions, database integrity, and configured binaries. Do not paste raw output containing private paths into public issues without review.
 
 ## Caddy helper

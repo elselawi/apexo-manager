@@ -27,6 +27,7 @@ import (
 	"github.com/apexo/pbmanager/internal/services/instances"
 	"github.com/apexo/pbmanager/internal/services/monitor"
 	"github.com/apexo/pbmanager/internal/services/systemd"
+	"github.com/apexo/pbmanager/internal/services/update"
 	"github.com/apexo/pbmanager/internal/settings"
 	"github.com/apexo/pbmanager/internal/store"
 )
@@ -46,6 +47,8 @@ type App struct {
 	Jobs      *jobs.Engine
 	Monitor   *monitor.Service
 	Discovery *discovery.Service
+	Update    *update.Client
+	Version   string
 	Log       *slog.Logger
 
 	wg      sync.WaitGroup
@@ -97,7 +100,7 @@ func Open(ctx context.Context, cfg config.Runtime, log *slog.Logger) (*App, erro
 		Config: cfg, Store: st, Secrets: box, Auth: auth.NewService(st, cfg.SessionTTL()),
 		Settings: settingsSvc, Systemd: systemdMgr, Caddy: caddyMgr, DNS: dnsMgr,
 		Backup: backupMgr, Instances: instSvc, Jobs: jobEngine, Monitor: monitorSvc,
-		Discovery: discoverySvc, Log: log,
+		Discovery: discoverySvc, Update: update.New(), Version: "dev", Log: log,
 	}
 	app.registerHandlers()
 	return app, nil
@@ -119,6 +122,7 @@ func (a *App) registerHandlers() {
 	a.Jobs.Register("backup.verify", a.backupVerify)
 	a.Jobs.Register("backup.restore", a.backupRestore)
 	a.Jobs.Register("caddy.ensure-import", a.caddyEnsureImport)
+	a.Jobs.Register("manager.update", a.managerUpdate)
 }
 
 // Start launches background workers and recovery.

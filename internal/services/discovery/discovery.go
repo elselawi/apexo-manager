@@ -51,7 +51,7 @@ type Service struct {
 // aborting the entire inventory.
 func (s *Service) Discover(ctx context.Context) ([]Found, []string, error) {
 	cfg := s.Cfg()
-	var warnings []string
+	warnings := []string{}
 	byKey := map[string]*Found{}
 
 	units, unitWarnings := scanUnits(ctx, cfg)
@@ -596,7 +596,7 @@ func scanFilesystem(ctx context.Context, roots []string) ([]Found, []string) {
 			rel, _ := filepath.Rel(root, path)
 			depth := len(strings.Split(rel, string(os.PathSeparator)))
 			if d.IsDir() {
-				if d.Name() == ".git" || d.Name() == "node_modules" || (depth > 4 && root != path) {
+				if d.Name() == ".git" || d.Name() == "node_modules" || strings.Contains(d.Name(), ".pbmanager-") || (depth > 4 && root != path) {
 					return filepath.SkipDir
 				}
 				return nil
