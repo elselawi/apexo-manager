@@ -44,8 +44,8 @@ This manager is built around a few non-negotiable rules:
 Push a version tag to publish Linux `amd64`/`arm64` binaries and a `checksums.txt` through the included GitHub Actions workflow:
 
 ```bash
-git tag v1.0.5
-git push origin v1.0.5
+git tag v1.0.6
+git push origin v1.0.6
 ```
 
 Owners can then use **Server configuration → Manager updates → Check GitHub → Install**. The updater requires a published (non-draft, non-prerelease) GitHub release. Deploy a self-updating build (1.0.3 or newer) once with `deploy-remote.sh` or the installer; after that, subsequent updates can be installed from the dashboard.
@@ -64,6 +64,7 @@ Owners can then use **Server configuration → Manager updates → Check GitHub 
 - Multiple SMTP profiles with STARTTLS/TLS/plain (loopback only) and PLAIN/LOGIN authentication.
 - Multiple S3-compatible storage profiles with signed `ListObjectsV2` validation.
 - Apply SMTP/S3 settings through PocketBase's documented `/api/settings` endpoint; no direct database modification.
+- Read the instance's current SMTP/S3 configuration and native backup list directly from PocketBase, then optionally pre-fill a manager profile from the non-secret values.
 - Scheduled backups with cron expressions (UTC), retention, and verification.
 - **Native backups** use PocketBase's official backup API for a consistent database snapshot, then bundle uploads, the systemd unit, Caddy snippets, and instance metadata into one verified archive.
 - **Fallback snapshots** use SQLite `VACUUM INTO` plus uploads and configuration when application credentials are not linked.

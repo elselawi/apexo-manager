@@ -96,6 +96,7 @@ func (s *Server) routes() {
 	s.protected("POST /api/v1/instances/{id}/storage/apply", "admin", s.handleApplyStorage)
 	s.protected("GET /api/v1/instances/{id}/logs", "viewer", s.handleInstanceLogs)
 	s.protected("GET /api/v1/instances/{id}/metrics", "viewer", s.handleInstanceMetrics)
+	s.protected("GET /api/v1/instances/{id}/application", "viewer", s.handleInstanceApplication)
 	s.protected("PUT /api/v1/instances/{id}/credentials", "admin", s.handleSetCredentials)
 	s.protected("DELETE /api/v1/instances/{id}/credentials", "admin", s.handleClearCredentials)
 	s.protected("POST /api/v1/instances/{id}/credentials/test", "admin", s.handleTestCredentials)

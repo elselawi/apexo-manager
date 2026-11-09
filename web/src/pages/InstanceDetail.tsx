@@ -43,7 +43,7 @@ import {
   statusTone,
   titleCase,
 } from "../lib/format";
-import type { Backup, Domain, Job, SMTPProfile, StorageProfile } from "../types";
+import type { ApplicationConfig, Backup, Domain, Job, SMTPProfile, StorageProfile } from "../types";
 import {
   Badge,
   Button,
@@ -552,6 +552,27 @@ function ApplicationTab({
   const [storageId, setStorageId] = useState(instance.storageProfileId ?? "");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [appConfig, setAppConfig] = useState<ApplicationConfig | null>(null);
+  const [appConfigError, setAppConfigError] = useState("");
+  const [appConfigLoading, setAppConfigLoading] = useState(false);
+  const navigate = useNavigate();
+
+  async function discoverApplication() {
+    setAppConfigLoading(true);
+    setAppConfigError("");
+    try {
+      setAppConfig(await api.instanceApplication(instance.id));
+    } catch (err) {
+      setAppConfig(null);
+      setAppConfigError(errorMessage(err));
+    } finally {
+      setAppConfigLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (instance.pbAuthStatus === "linked") void discoverApplication();
+  }, [instance.id, instance.pbAuthStatus]);
 
   useEffect(() => {
     void Promise.all([
@@ -613,6 +634,12 @@ function ApplicationTab({
   return (
     <div className="detail-grid">
       <div className="detail-main">
+        <Notice tone="info" title="Profiles are optional saved credentials">
+          Existing PocketBase SMTP, S3, and native backups are shown below and are not changed by pbmanager. A
+          <strong> profile </strong> is a reusable saved configuration used only when you want the manager to apply or
+          change those settings. To adopt the current configuration, use <strong>Import … as profile</strong> and
+          re-enter the secret that PocketBase does not expose.
+        </Notice>
         <Card
           title="PocketBase management credentials"
           subtitle="Optional, encrypted, and scoped to this instance"
@@ -653,6 +680,75 @@ function ApplicationTab({
             The manager never bypasses PocketBase authentication and never writes to internal PocketBase tables. Use a
             dedicated superuser for this integration.
           </Notice>
+        </Card>
+
+        <Card
+          title="Current PocketBase configuration"
+          subtitle="Read directly from this instance's documented settings API."
+          actions={<Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={() => void discoverApplication()} loading={appConfigLoading}>Refresh</Button>}
+        >
+          {instance.pbAuthStatus !== "linked" ? (
+            <Notice tone="warning">
+              Link or create a managed superuser to read the current SMTP, S3, and native backup configuration.
+            </Notice>
+          ) : appConfigError ? (
+            <div className="form-error">{appConfigError}</div>
+          ) : !appConfig ? (
+            <LoadingBlock label="Reading PocketBase configuration…" />
+          ) : (
+            <>
+              <div className="two-column-grid">
+                <div className="profile-meta-grid">
+                  <div><span>SMTP</span><strong>{appConfig.smtp.enabled ? "enabled" : "disabled"}</strong></div>
+                  <div><span>Server</span><strong>{appConfig.smtp.enabled && appConfig.smtp.host ? `${appConfig.smtp.host}:${appConfig.smtp.port}` : "not enabled"}</strong></div>
+                  <div><span>Username</span><strong>{appConfig.smtp.enabled ? appConfig.smtp.username || "—" : "—"}</strong></div>
+                  <div><span>Password</span><strong>not returned by PocketBase</strong></div>
+                  <div><span>Sender</span><strong>{appConfig.smtp.enabled ? appConfig.smtp.fromAddress || "—" : "—"}</strong></div>
+                  <div><span>TLS</span><strong>{appConfig.smtp.enabled ? (appConfig.smtp.tls ? "enabled" : "disabled") : "—"}</strong></div>
+                </div>
+                <div className="profile-meta-grid">
+                  <div><span>S3</span><strong>{appConfig.s3.enabled ? "enabled" : "disabled"}</strong></div>
+                  <div><span>Bucket</span><strong>{appConfig.s3.bucket || "not configured"}</strong></div>
+                  <div><span>Region</span><strong>{appConfig.s3.region || "—"}</strong></div>
+                  <div><span>Access key</span><strong className="mono">{appConfig.s3.accessKey || "—"}</strong></div>
+                  <div><span>Secret</span><strong>not returned by PocketBase</strong></div>
+                  <div><span>Path style</span><strong>{appConfig.s3.forcePathStyle ? "enabled" : "virtual host"}</strong></div>
+                </div>
+              </div>
+              <div className="endpoint-box mono">{appConfig.s3.endpoint || "AWS default endpoint"}</div>
+              <div className="button-row">
+                <Button size="sm" variant="secondary" disabled={!appConfig.smtp.enabled || !appConfig.smtp.host} onClick={() => navigate("/smtp", { state: { imported: appConfig.smtp } })}>Import SMTP as profile</Button>
+                <Button size="sm" variant="secondary" disabled={!appConfig.s3.bucket} onClick={() => navigate("/storage", { state: { imported: appConfig.s3 } })}>Import S3 as profile</Button>
+              </div>
+              <Notice tone="info">
+                PocketBase does not return SMTP or S3 secrets. Importing pre-fills the non-secret fields; re-enter the
+                password or secret key before saving the profile. Existing settings are never changed unless you
+                explicitly apply a profile.
+              </Notice>
+              <div className="form-section-title" style={{ marginTop: 4 }}>
+                <h3>Native PocketBase backups</h3>
+                <p>{appConfig.backups.length} found · not pbmanager backup records</p>
+              </div>
+              {appConfig.backups.length === 0 ? (
+                <p className="muted small">No native backups are present in this PocketBase data directory.</p>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table compact">
+                    <thead><tr><th>Backup</th><th>Size</th><th>Modified</th></tr></thead>
+                    <tbody>
+                      {appConfig.backups.slice(0, 8).map((backup) => (
+                        <tr key={backup.key}>
+                          <td className="mono small">{backup.key}</td>
+                          <td>{formatBytes(backup.size)}</td>
+                          <td className="muted">{formatRelative(backup.modified)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </Card>
 
         <Card title="SMTP profile" subtitle="Assignment is not application. Apply pushes settings via PocketBase's settings API.">
@@ -754,6 +850,17 @@ function BackupsTab({
 }) {
   const toast = useToast();
   const [creating, setCreating] = useState(false);
+  const [nativeBackups, setNativeBackups] = useState<ApplicationConfig["backups"] | null>(null);
+
+  useEffect(() => {
+    if (instance.pbAuthStatus !== "linked") {
+      setNativeBackups([]);
+      return;
+    }
+    void api.instanceApplication(instance.id)
+      .then((cfg) => setNativeBackups(cfg.backups))
+      .catch(() => setNativeBackups([]));
+  }, [instance.id, instance.pbAuthStatus]);
 
   async function createBackup() {
     setCreating(true);
@@ -782,6 +889,28 @@ function BackupsTab({
       }
       padded={false}
     >
+      {nativeBackups && nativeBackups.length > 0 ? (
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+          <div className="form-section-title">
+            <h3>Native PocketBase backups</h3>
+            <p>Read directly from PocketBase · separate from pbmanager backup records</p>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table compact">
+              <thead><tr><th>Backup</th><th>Size</th><th>Modified</th></tr></thead>
+              <tbody>
+                {nativeBackups.slice(0, 8).map((backup) => (
+                  <tr key={backup.key}>
+                    <td className="mono small">{backup.key}</td>
+                    <td>{formatBytes(backup.size)}</td>
+                    <td className="muted">{formatRelative(backup.modified)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
       {backups.length === 0 ? (
         <EmptyState icon={<Archive size={24} />} title="No backups" description="Create a manual backup or enable a schedule." />
       ) : (

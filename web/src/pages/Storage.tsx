@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Database, HardDrive, Plus, Trash2, Wifi } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDocumentTitle, usePolling } from "../lib/hooks";
 import { useToast } from "../lib/toast";
 import { formatRelative } from "../lib/format";
-import type { StorageProfile } from "../types";
+import type { ApplicationConfig, StorageProfile } from "../types";
 import {
   Badge,
   Button,
@@ -54,6 +54,18 @@ export function StoragePage() {
   const [editing, setEditing] = useState<StorageProfile | null>(null);
   const [deleteProfile, setDeleteProfile] = useState<StorageProfile | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ApplicationConfig["s3"] | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const imported = (location.state as { imported?: ApplicationConfig["s3"] } | null)?.imported;
+  useEffect(() => {
+    if (!imported) return;
+    setEditing(null);
+    setDraft(imported);
+    setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [imported, location.pathname, navigate]);
 
   const profiles = data?.items ?? [];
 
@@ -139,8 +151,9 @@ export function StoragePage() {
       <StorageFormModal
         open={modalOpen}
         profile={editing}
-        onClose={() => setModalOpen(false)}
-        onSaved={() => { refresh(); toast.success("Storage profile saved"); }}
+        draft={draft}
+        onClose={() => { setModalOpen(false); setDraft(null); }}
+        onSaved={() => { refresh(); toast.success("Storage profile saved"); setDraft(null); }}
       />
       <ConfirmDialog
         open={Boolean(deleteProfile)}
@@ -163,11 +176,13 @@ export function StoragePage() {
 function StorageFormModal({
   open,
   profile,
+  draft,
   onClose,
   onSaved,
 }: {
   open: boolean;
   profile: StorageProfile | null;
+  draft?: ApplicationConfig["s3"] | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -178,6 +193,19 @@ function StorageFormModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    if (draft) {
+      setForm({
+        name: `Imported ${draft.bucket || draft.endpoint || "S3"}`,
+        provider: draft.endpoint ? "custom" : "aws",
+        endpoint: draft.endpoint,
+        region: draft.region,
+        bucket: draft.bucket,
+        accessKey: draft.accessKey,
+        secretKey: "",
+        forcePathStyle: draft.forcePathStyle,
+      });
+      return;
+    }
     setForm(
       profile
         ? {
@@ -192,7 +220,7 @@ function StorageFormModal({
           }
         : emptyForm,
     );
-  }, [open, profile]);
+  }, [open, profile, draft]);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -220,12 +248,20 @@ function StorageFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={profile ? "Edit storage profile" : "New storage profile"}
+      title={profile ? "Edit storage profile" : draft ? "Import current S3 settings" : "New storage profile"}
       size="lg"
       footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" type="submit" form="storage-form" loading={busy}>Save profile</Button></>}
     >
       <form id="storage-form" className="form-grid" onSubmit={(event) => void submit(event)}>
         {error ? <div className="form-error form-span">{error}</div> : null}
+        {draft ? (
+          <div className="form-span">
+            <Notice tone="info">
+              Non-secret S3 values were read from PocketBase. The secret access key is not returned, so re-enter it
+              before saving; applying the profile later is an explicit instance action.
+            </Notice>
+          </div>
+        ) : null}
         <Field label="Profile name" required>
           <Input value={form.name} onChange={(e) => update("name", e.target.value)} required />
         </Field>

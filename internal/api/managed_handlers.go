@@ -63,3 +63,17 @@ func (s *Server) handleRepairManagedCredentials(w http.ResponseWriter, r *http.R
 func (s *Server) handleDeleteManagedCredentials(w http.ResponseWriter, r *http.Request) {
 	s.enqueueManagedJob(w, r, "managed.delete")
 }
+
+func (s *Server) handleInstanceApplication(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.App.Store.GetInstance(r.Context(), id); err != nil {
+		writeError(w, r, http.StatusNotFound, "not_found", "Instance not found", nil)
+		return
+	}
+	cfg, err := s.App.Instances.ApplicationConfig(r.Context(), id)
+	if err != nil {
+		writeError(w, r, http.StatusConflict, "application_config_unavailable", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg)
+}

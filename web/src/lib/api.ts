@@ -1,5 +1,6 @@
 import type {
   Admin,
+  ApplicationConfig,
   AuditEntry,
   AuthStatus,
   Backup,
@@ -201,6 +202,10 @@ export const api = {
 
   instanceLogs(id: string, lines = 200): Promise<{ logs: string; service: string; lines: number }> {
     return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/logs${query({ lines })}`);
+  },
+
+  instanceApplication(id: string): Promise<ApplicationConfig> {
+    return request("GET", `/api/v1/instances/${encodeURIComponent(id)}/application`);
   },
 
   setCredentials(id: string, email: string, password: string): Promise<{ status: string; email: string }> {

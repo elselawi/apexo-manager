@@ -97,6 +97,7 @@ Missing/incorrect CSRF returns `403`.
 | POST | `/instances/{id}/update` | admin | Enqueue PocketBase update. |
 | POST | `/instances/{id}/verify` | viewer | Live health check. |
 | POST | `/instances/{id}/sync-caddy` | admin | Reconcile managed Caddy routes. |
+| GET | `/instances/{id}/application` | viewer | Read live SMTP/S3 settings and native PocketBase backup inventory. Secrets are never returned. |
 | POST | `/instances/{id}/smtp/apply` | admin | Apply SMTP profile via PocketBase settings API. |
 | POST | `/instances/{id}/storage/apply` | admin | Apply S3 profile via PocketBase settings API. |
 | GET | `/instances/{id}/logs` | viewer | systemd journal lines. |

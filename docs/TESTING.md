@@ -87,7 +87,16 @@ The schema migration to version 2 added the managed-credential fields. On a loca
 
 The PocketBase list API is available at `/api/collections/_superusers/records`; record-level update/delete is not available on this build. Email-rename cleanup therefore resolves the old record through the list API and removes the current email through the official CLI.
 
-After the final 1.0.5 build, local health was `{"service":"pbmanager","status":"ok","version":"1.0.5"}` and the managed UI loaded with the expected controls.
+After the final 1.0.6 build, local health was `{"service":"pbmanager","status":"ok","version":"1.0.6"}` and the managed UI loaded with the expected controls.
+
+Application discovery was exercised against the local `clinic-b` instance with its managed superuser:
+
+- `GET /instances/{id}/application` returned the live SMTP section, S3 section, and native backup list.
+- SMTP default/disabled values were shown without implying they were configured.
+- Chrome loaded **Current PocketBase configuration**, the profile-explanation notice, and the **Import SMTP/S3 as profile** actions.
+- The S3 import modal pre-fills endpoint, region, bucket, access key, and path style; the secret is intentionally blank because PocketBase does not return it.
+- The Application tab and Backups tab both show native PocketBase backups separately from pbmanager-created backups.
+- The endpoint returns no SMTP password or S3 secret.
 
 Real Caddy validation test:
 

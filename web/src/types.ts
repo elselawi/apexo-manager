@@ -102,6 +102,32 @@ export interface Domain {
   updatedAt: string;
 }
 
+export interface ApplicationConfig {
+  smtp: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    username: string;
+    authMethod: string;
+    tls: boolean;
+    localName: string;
+    fromAddress: string;
+    fromName: string;
+    passwordConfigured: boolean;
+  };
+  s3: {
+    enabled: boolean;
+    endpoint: string;
+    bucket: string;
+    region: string;
+    accessKey: string;
+    forcePathStyle: boolean;
+    secretConfigured: boolean;
+  };
+  backups: { key: string; size: number; modified: string }[];
+  fetchedAt: string;
+}
+
 export interface SMTPProfile {
   id: string;
   name: string;

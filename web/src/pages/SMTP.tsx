@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Cloud, Mail, Plus, Send, Trash2, Wifi } from "lucide-react";
 import { api, errorMessage } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDocumentTitle, usePolling } from "../lib/hooks";
 import { useToast } from "../lib/toast";
 import { formatRelative } from "../lib/format";
-import type { SMTPProfile } from "../types";
+import type { ApplicationConfig, SMTPProfile } from "../types";
 import {
   Badge,
   Button,
@@ -49,6 +49,18 @@ export function SMTPPage() {
   const [editing, setEditing] = useState<SMTPProfile | null>(null);
   const [deleteProfile, setDeleteProfile] = useState<SMTPProfile | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ApplicationConfig["smtp"] | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const imported = (location.state as { imported?: ApplicationConfig["smtp"] } | null)?.imported;
+  useEffect(() => {
+    if (!imported) return;
+    setEditing(null);
+    setDraft(imported);
+    setModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [imported, location.pathname, navigate]);
 
   const profiles = data?.items ?? [];
 
@@ -136,8 +148,9 @@ export function SMTPPage() {
       <SMTPFormModal
         open={modalOpen}
         profile={editing}
-        onClose={() => setModalOpen(false)}
-        onSaved={() => { refresh(); toast.success("SMTP profile saved"); }}
+        draft={draft}
+        onClose={() => { setModalOpen(false); setDraft(null); }}
+        onSaved={() => { refresh(); toast.success("SMTP profile saved"); setDraft(null); }}
       />
       <ConfirmDialog
         open={Boolean(deleteProfile)}
@@ -160,11 +173,13 @@ export function SMTPPage() {
 function SMTPFormModal({
   open,
   profile,
+  draft,
   onClose,
   onSaved,
 }: {
   open: boolean;
   profile: SMTPProfile | null;
+  draft?: ApplicationConfig["smtp"] | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -175,6 +190,21 @@ function SMTPFormModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    if (draft) {
+      setForm({
+        name: `Imported ${draft.host}`,
+        host: draft.host,
+        port: draft.port || 587,
+        username: draft.username,
+        password: "",
+        authMethod: draft.authMethod || "PLAIN",
+        tlsMode: draft.tls ? "tls" : "starttls",
+        localName: draft.localName,
+        fromAddress: draft.fromAddress,
+        fromName: draft.fromName,
+      });
+      return;
+    }
     setForm(
       profile
         ? {
@@ -191,7 +221,7 @@ function SMTPFormModal({
           }
         : emptyForm,
     );
-  }, [open, profile]);
+  }, [open, profile, draft]);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -220,12 +250,20 @@ function SMTPFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={profile ? "Edit SMTP profile" : "New SMTP profile"}
+      title={profile ? "Edit SMTP profile" : draft ? "Import current SMTP settings" : "New SMTP profile"}
       size="lg"
       footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" type="submit" form="smtp-form" loading={busy}>Save profile</Button></>}
     >
       <form id="smtp-form" className="form-grid" onSubmit={(event) => void submit(event)}>
         {error ? <div className="form-error form-span">{error}</div> : null}
+        {draft ? (
+          <div className="form-span">
+            <Notice tone="info">
+              Non-secret values were read from PocketBase. PocketBase does not return the current SMTP password, so
+              re-enter it before saving; no instance settings are changed until you apply the profile.
+            </Notice>
+          </div>
+        ) : null}
         <Field label="Profile name" required>
           <Input value={form.name} onChange={(e) => update("name", e.target.value)} placeholder="Transactional mail" required />
         </Field>
@@ -271,8 +309,8 @@ function SMTPFormModal({
         <Field label="Username">
           <Input value={form.username} onChange={(e) => update("username", e.target.value)} autoComplete="username" />
         </Field>
-        <Field label={profile ? "Password (leave blank to keep existing)" : "Password"}>
-          <Input value={form.password} onChange={(e) => update("password", e.target.value)} type="password" autoComplete="new-password" />
+        <Field label={profile ? "Password (leave blank to keep existing)" : "Password"} required={!profile}>
+          <Input value={form.password} onChange={(e) => update("password", e.target.value)} type="password" autoComplete="new-password" required={!profile} />
         </Field>
         <Field label="Sender address">
           <Input type="email" value={form.fromAddress} onChange={(e) => update("fromAddress", e.target.value)} placeholder="noreply@example.com" />

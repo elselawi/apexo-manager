@@ -110,6 +110,18 @@ The manager keeps the account durable and encrypted, and a watchdog verifies it 
 
 This is intentionally a manager-owned account. An operator should not manually rotate or delete it unless they first use **Stop managing**. A manually linked credential, by contrast, is never auto-healed.
 
+## Application configuration discovery
+
+The instance Application tab reads the live PocketBase `/api/settings` and `/api/backups` endpoints with the linked or managed superuser:
+
+- SMTP host, port, username, sender, TLS, and enabled state.
+- S3 endpoint, bucket, region, access key, path style, and enabled state.
+- Native PocketBase backup keys, sizes, and modification times.
+
+The endpoint is read-only and never returns SMTP passwords or S3 secret keys. PocketBase does not expose those values. Current values can pre-fill a manager profile, but the secret must be re-entered before saving. Existing PocketBase settings are not modified by discovery, and native backups are shown separately from pbmanager's own backup records.
+
+Because PocketBase does not store a backup schedule, the manager cannot discover one. Its cron/retention policy remains manager-owned.
+
 ## Self-update
 
 The manager can update itself from official GitHub releases:
