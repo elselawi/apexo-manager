@@ -205,7 +205,8 @@ scripts                build, install, upgrade, uninstall, integration tests
 The complete system was built and exercised on Ubuntu 24.04 under WSL2 with real systemd, Caddy, and PocketBase 0.23.6:
 
 - HTTPS dashboard through Caddy at `https://manager.localhost`.
-- Imported existing PocketBase instance left running and unchanged.
+- Imported a genuinely unmanaged PocketBase installation (`legacy-a`): unit hash, inode metadata, PID, and service health were unchanged.
+- Imported an existing manager-created instance left running and unchanged.
 - New instance provisioned from a verified official 0.23.6 archive with generated PocketBase superuser.
 - Native backup bundle including uploads, restore with health verification, and upload recovery.
 - Manager `SIGKILL` mid-job; systemd restarted it and the interrupted job was recovered and completed.

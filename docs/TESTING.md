@@ -113,6 +113,44 @@ Observed:
 - No service restart, file rewrite, chown, Caddy, or DNS change occurred during import.
 - Monitor later reported `running / healthy`.
 
+## Unmanaged existing installation import
+
+`clinic-a` was already present, but it had originally been created by an earlier test manager, so it was not independent evidence. A separate installation, `legacy-a`, was created manually outside the manager:
+
+- system user `legacy-pb`
+- directory `/srv/legacy-a`
+- binary `/srv/legacy-a/pocketbase` (42 MB, official 0.23.6 binary)
+- data `/srv/legacy-a/pb_data`
+- port `18093`
+- unit `/etc/systemd/system/legacy-a.service` with **no pbmanager marker**
+
+Import command:
+
+```bash
+pbmanager --config /etc/pbmanager/config.json instances import \
+  --name legacy-a --hostname legacy-a \
+  --base-dir /srv/legacy-a \
+  --binary /srv/legacy-a/pocketbase \
+  --data-dir /srv/legacy-a/pb_data \
+  --port 18093 --service legacy-a \
+  --service-file /etc/systemd/system/legacy-a.service \
+  --run-as legacy-pb --version 0.23.6
+```
+
+Before/after evidence:
+
+- unit SHA-256 unchanged (`b4b59e5eac259f78372c7a4d39f20b80725ab605b70e859fe38839d47ca05db6`)
+- same `MainPID=581`
+- same `ActiveEnterTimestamp` (`10:53:51`)
+- same unit mtime and size
+- same binary mtime and size
+- zero `managed by pbmanager` markers in the unit
+- service still active; `http://127.0.0.1:18093/api/health` still 200
+- manager inventory shows `legacy-a`, `managed:false`, `source:cli-import`
+- monitor later reported `running / healthy`
+
+This directly verifies that importing an installation the manager did not create performs no OS-level changes and does not restart or rewrite the app.
+
 ## Provisioning
 
 A new instance `clinic-b` was provisioned from the official PocketBase 0.23.6 archive via a local checksum-verified mirror:
