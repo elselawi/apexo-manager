@@ -72,6 +72,17 @@ A real GitHub end-to-end update was then exercised:
 
 Final health: `{"service":"pbmanager","status":"ok","version":"1.0.3"}`.
 
+A second real dashboard update was then run from official **1.0.3** to **1.0.4**. Unlike the earlier 1.0.2 test, the job completed on attempt 1:
+
+- check succeeded
+- download succeeded with SHA-256 `2c125a582e78ebd3a19bf08cafccf42bbbc687cfafd4d5372cc85f53a936d415`
+- schedule succeeded
+- the job was marked `succeeded` before the delayed restart
+- the updater restarted the service and wrote `last-result.json` with `status: success, version: 1.0.4`
+- final health: `{"service":"pbmanager","status":"ok","version":"1.0.4"}`
+
+The 1.0.4 release includes the ephemeral-superuser implementation described above.
+
 Real Caddy validation test:
 
 ```bash
