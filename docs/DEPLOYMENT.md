@@ -89,6 +89,10 @@ The installer:
 
 No default password exists. If no admin is created, the installer prints the command to run.
 
+When rerun on an existing installation with `--domain` or `--public-url`, the installer updates `public_url` and the secure-cookie policy **without moving data or changing the database path**, restarts the service, and health-checks it. This is the supported way to convert a loopback-only install into a public HTTPS dashboard.
+
+`deploy-remote.sh` requires `--domain` or an explicit `--public-url`, so a remote install cannot silently remain accessible only on `127.0.0.1`.
+
 ## 4. Verify
 
 ```bash

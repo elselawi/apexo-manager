@@ -43,7 +43,7 @@ Coverage highlights:
 | PocketBase client | Auth, settings GET/PATCH, SMTP/S3 extraction helpers, health, file token/download. |
 | Backup | SQLite snapshot + uploads archive, manager create/verify/prune, traversal rejection, official ZIP inspect/validate, native bundle with uploads, full restore with service stop/start, upload recovery, previous-data retention, wrong confirmation. |
 | API | Unauthorized access, health, security headers, login, cookie flags, CSRF enforcement, owner/viewer roles, settings update/audit, invalid credentials. |
-| CLI | Flags before/after positionals, equals form, effective-UID root enforcement. |
+| CLI | Flags before/after positionals, equals form, effective-UID root enforcement, `config set` updates bootstrap URL/cookie/listen without changing data paths. |
 | Discovery | Unit parsing, PB args, name sanitization, unique names. |
 | Settings | Defaults, strict validation, unsafe templates, no implicit data relocation, template expansion. |
 | Monitor | Host info sanity, disk free bounds. |
@@ -273,6 +273,30 @@ The overview and instance detail initially exposed two issues that were fixed:
 - instance detail used a top-level `portListening` that is only present in the metrics object.
 
 The Caddy page initially crashed when the Caddyfile had no top-level site blocks because the API serialized nil slices as `null`; the backend now returns empty slices and the UI also defaults them. The final browser pass reported only the expected pre-login `401` for `/auth/me`; no dashboard render errors remained.
+
+## Installer reconfiguration
+
+The installer was rerun on an existing HTTPS deployment with `--domain manager.localhost --public-url https://manager.localhost`. It:
+
+- preserved the existing database, data directory, admin, and inventory,
+- updated `public_url` to the HTTPS URL,
+- forced `secure_cookies` to true,
+- left `data_dir`, `db_path`, and listen address unchanged,
+- restarted the service, passed health checks, and reloaded the existing Caddy route.
+
+Observed config after rerun:
+
+```json
+{
+  "data_dir": "/var/lib/pbmanager",
+  "db_path": "/var/lib/pbmanager/manager.db",
+  "listen_addr": "127.0.0.1:8787",
+  "public_url": "https://manager.localhost",
+  "secure_cookies": true
+}
+```
+
+`deploy-remote.sh` now rejects a remote invocation without `--domain`/`--public-url`, preventing the loopback-only-default mistake.
 
 ## What was not tested against real providers
 

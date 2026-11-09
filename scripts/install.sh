@@ -11,6 +11,7 @@ DATA_DIR="/var/lib/pbmanager"
 UNIT="/etc/systemd/system/pbmanager.service"
 LISTEN="127.0.0.1:8787"
 PUBLIC_URL=""
+PUBLIC_URL_EXPLICIT="0"
 DOMAIN=""
 ADMIN_USERNAME=""
 SKIP_CADDY="0"
@@ -40,7 +41,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --binary) BINARY_SRC="$2"; shift 2 ;;
     --listen) LISTEN="$2"; shift 2 ;;
-    --public-url) PUBLIC_URL="$2"; shift 2 ;;
+    --public-url) PUBLIC_URL="$2"; PUBLIC_URL_EXPLICIT="1"; shift 2 ;;
     --domain) DOMAIN="$2"; shift 2 ;;
     --admin-username) ADMIN_USERNAME="$2"; shift 2 ;;
     --skip-caddy) SKIP_CADDY="1"; shift ;;
@@ -105,7 +106,15 @@ echo "== Writing bootstrap configuration =="
 if [[ ! -f "$CONFIG" ]]; then
   "$BIN" config init --path "$CONFIG" --data-dir "$DATA_DIR" --listen "$LISTEN" --public-url "$PUBLIC_URL"
 else
-  echo "Existing configuration retained. Review it with: pbmanager --config $CONFIG config show"
+  if [[ "$PUBLIC_URL_EXPLICIT" == "1" || -n "$DOMAIN" ]]; then
+    secure="false"
+    [[ "$PUBLIC_URL" == https://* ]] && secure="true"
+    "$BIN" --config "$CONFIG" config set --public-url "$PUBLIC_URL" --secure-cookies="$secure"
+    echo "Updated public URL and cookie policy in $CONFIG."
+  else
+    echo "Existing configuration retained. Review it with: pbmanager --config $CONFIG config show"
+    echo "warning: no --domain/--public-url supplied; the dashboard may remain loopback-only." >&2
+  fi
 fi
 
 echo "== Installing systemd unit =="

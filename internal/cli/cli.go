@@ -132,6 +132,7 @@ Commands:
   admin reset-password  Reset an administrator password
   admin disable|enable|delete|revoke-sessions
   config show           Show bootstrap and server configuration
+  config set            Update public URL, listen address, or session policy
   config validate       Validate configuration and filesystem permissions
   config init           Create a bootstrap configuration file
   jobs list|inspect|retry|cancel
@@ -1266,6 +1267,52 @@ func cmdConfig(args []string) int {
 			return fail(err)
 		}
 		fmt.Printf("Wrote %s\n", *path)
+		return 0
+	case "set":
+		fs := flag.NewFlagSet("config set", flag.ContinueOnError)
+		path := fs.String("path", configPath, "config path")
+		publicURL := fs.String("public-url", "", "public dashboard URL")
+		secure := fs.String("secure-cookies", "", "true or false")
+		listen := fs.String("listen", "", "listen address")
+		logLevel := fs.String("log-level", "", "debug, info, warn, error")
+		sessionHours := fs.Int("session-hours", 0, "session lifetime in hours (1-168)")
+		if err := fs.Parse(parseArgs(fs, args[1:])); err != nil {
+			return 2
+		}
+		if err := requireRoot(); err != nil {
+			return fail(err)
+		}
+		cfg, err := config.Load(*path)
+		if err != nil {
+			return fail(err)
+		}
+		if *publicURL != "" {
+			cfg.PublicURL = *publicURL
+		}
+		if *secure != "" {
+			v, err := strconv.ParseBool(*secure)
+			if err != nil {
+				return fail(errors.New("--secure-cookies must be true or false"))
+			}
+			cfg.SecureCookies = v
+		}
+		if *listen != "" {
+			cfg.ListenAddr = *listen
+		}
+		if *logLevel != "" {
+			cfg.LogLevel = *logLevel
+		}
+		if *sessionHours != 0 {
+			cfg.SessionHours = *sessionHours
+		}
+		if err := config.Write(*path, cfg); err != nil {
+			return fail(err)
+		}
+		reloaded, _ := config.Load(*path)
+		printJSON(map[string]any{
+			"publicUrl": reloaded.PublicURL, "secureCookies": reloaded.SecureCookies,
+			"listenAddr": reloaded.ListenAddr, "restartRequired": true,
+		})
 		return 0
 	case "validate":
 		if err := requireRoot(); err != nil {

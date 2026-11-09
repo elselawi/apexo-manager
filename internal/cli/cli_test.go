@@ -2,7 +2,10 @@ package cli
 
 import (
 	"flag"
+	"path/filepath"
 	"testing"
+
+	"github.com/apexo/pbmanager/internal/config"
 )
 
 func TestParseArgsAllowsFlagsAnywhere(t *testing.T) {
@@ -42,5 +45,34 @@ func TestRootEnforcementUsesEffectiveUID(t *testing.T) {
 	geteuid = func() int { return 0 }
 	if err := requireRoot(); err != nil {
 		t.Fatalf("root uid rejected: %v", err)
+	}
+}
+
+func TestConfigSetUpdatesBootstrap(t *testing.T) {
+	oldEU, oldPath := geteuid, configPath
+	defer func() { geteuid, configPath = oldEU, oldPath }()
+	geteuid = func() int { return 0 }
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	cfg := config.Default()
+	cfg.DataDir = dir
+	cfg.DBPath = filepath.Join(dir, "manager.db")
+	cfg.PublicURL = "http://127.0.0.1:8787"
+	if err := config.Write(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	configPath = path
+	if code := cmdConfig([]string{"set", "--public-url", "https://manager.example.com", "--secure-cookies=true", "--listen", "127.0.0.1:8788"}); code != 0 {
+		t.Fatalf("config set exit %d", code)
+	}
+	got, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublicURL != "https://manager.example.com" || !got.SecureCookies || got.ListenAddr != "127.0.0.1:8788" {
+		t.Fatalf("config not updated: %#v", got)
+	}
+	if got.DataDir != dir || got.DBPath != filepath.Join(dir, "manager.db") {
+		t.Fatalf("bootstrap paths changed: %#v", got)
 	}
 }

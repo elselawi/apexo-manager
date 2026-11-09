@@ -40,7 +40,10 @@ pbmanager config validate
 pbmanager config init --path /etc/pbmanager/config.json \
   --data-dir /var/lib/pbmanager --listen 127.0.0.1:8787 \
   --public-url https://manager.example.com
+pbmanager config set --public-url https://manager.example.com --secure-cookies=true
 ```
+
+`config set` updates an existing bootstrap config without changing `data_dir` or `db_path`; restart the service afterward. It is used by the installer when converting a loopback-only installation to a public HTTPS URL.
 
 `status` reports manager version, database, listeners, running/total instances, and job counts. `config validate` checks paths, permissions, and templates without changing anything.
 

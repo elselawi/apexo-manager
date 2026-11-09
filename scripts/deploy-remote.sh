@@ -20,8 +20,8 @@ Usage: ./scripts/deploy-remote.sh --host HOST [options]
   --host HOST            SSH host or IP (required)
   --user USER            SSH user (default: current user)
   --port PORT            SSH port (default: 22)
-  --domain DOMAIN        Dashboard domain for Caddy
-  --public-url URL       Public dashboard URL
+  --domain DOMAIN        Dashboard domain for Caddy (required unless --public-url)
+  --public-url URL       Public dashboard URL (required unless --domain)
   --admin-username NAME  First owner (installer prompts for password)
   --binary PATH          Local binary (default: dist/pbmanager)
   --skip-caddy           Do not configure a Caddy route
@@ -49,6 +49,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$HOST" ]]; then echo "error: --host is required" >&2; usage; exit 2; fi
+if [[ -z "$DOMAIN" && -z "$PUBLIC_URL" ]]; then
+  echo "error: pass --domain or --public-url." >&2
+  echo "A remote install must not silently remain loopback-only; use an explicit local URL only if you really intend that." >&2
+  exit 2
+fi
 if [[ ! -x "$BINARY" ]]; then echo "error: binary not found: $BINARY" >&2; exit 1; fi
 if [[ -z "$USER_NAME" ]]; then USER_NAME="$(id -un)"; fi
 TARGET="$USER_NAME@$HOST"

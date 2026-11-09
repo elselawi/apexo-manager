@@ -41,7 +41,11 @@ pbmanager config init --path /etc/pbmanager/config.json \
   --public-url https://manager.example.com
 pbmanager --config /etc/pbmanager/config.json config show
 pbmanager --config /etc/pbmanager/config.json config validate
+pbmanager --config /etc/pbmanager/config.json config set \
+  --public-url https://manager.example.com --secure-cookies=true
 ```
+
+`config set` updates only the supplied bootstrap fields, preserves `data_dir` and `db_path`, writes atomically with 0600 permissions, and prints `restartRequired`. Restart the service to apply it.
 
 The bootstrap config must be owned by root and not writable by group/others. The manager validates this and warns on unsafe permissions.
 
